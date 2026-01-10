@@ -1,0 +1,188 @@
+'use server'
+
+import { prisma } from '@/lib/db'
+import { z } from 'zod'
+import { revalidatePath } from 'next/cache'
+import { lockSlot, releaseSlot } from '@/lib/redis'
+
+const createBookingSchema = z.object({
+  providerId: z.string(),
+  serviceId: z.string(),
+  staffId: z.string(),
+  customerName: z.string().min(1, 'Customer name is required'),
+  customerPhone: z.string().min(1, 'Phone number is required'),
+  customerEmail: z.string().email().optional(),
+  bookingDate: z.date(),
+  startTime: z.string(),
+  endTime: z.string(),
+  notes: z.string().optional(),
+})
+
+export async function createBooking(data: z.infer<typeof createBookingSchema>) {
+  try {
+    const validated = createBookingSchema.parse(data)
+
+    // Create lock key for the slot
+    const lockKey = `slot:${validated.staffId}:${validated.bookingDate.toISOString()}:${validated.startTime}`
+
+    // Try to acquire lock (5 minute TTL)
+    const lockAcquired = await lockSlot(lockKey, 300)
+
+    if (!lockAcquired) {
+      return { error: 'This time slot is currently being booked by another customer. Please try again.' }
+    }
+
+    try {
+      // Check if slot is available
+      const conflictingBooking = await prisma.booking.findFirst({
+      where: {
+        staffId: validated.staffId,
+        bookingDate: validated.bookingDate,
+        status: {
+          notIn: ['CANCELLED'],
+        },
+        OR: [
+          {
+            AND: [
+              { startTime: { lte: validated.startTime } },
+              { endTime: { gt: validated.startTime } },
+            ],
+          },
+          {
+            AND: [
+              { startTime: { lt: validated.endTime } },
+              { endTime: { gte: validated.endTime } },
+            ],
+          },
+        ],
+      },
+    })
+
+      if (conflictingBooking) {
+        await releaseSlot(lockKey)
+        return { error: 'This time slot is no longer available' }
+      }
+
+      // Create booking
+      const booking = await prisma.booking.create({
+      data: {
+        providerId: validated.providerId,
+        serviceId: validated.serviceId,
+        staffId: validated.staffId,
+        customerName: validated.customerName,
+        customerPhone: validated.customerPhone,
+        customerEmail: validated.customerEmail,
+        bookingDate: validated.bookingDate,
+        startTime: validated.startTime,
+        endTime: validated.endTime,
+        notes: validated.notes,
+      },
+    })
+
+      // Keep lock until payment is processed or fails
+      // Lock will expire after 5 minutes automatically
+
+      revalidatePath(`/book/${validated.providerId}`)
+      return { success: true, booking, lockKey }
+    } catch (error) {
+      // Release lock on error
+      await releaseSlot(lockKey)
+      throw error
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { error: error.errors[0].message }
+    }
+    console.error('Error creating booking:', error)
+    return { error: 'Failed to create booking' }
+  }
+}
+
+export async function getAvailableSlots(data: {
+  providerId: string
+  serviceId: string
+  date: string
+}) {
+  try {
+    const date = new Date(data.date)
+    const dayOfWeek = date.getDay()
+
+    // Get staff who can provide this service
+    const staff = await prisma.staffMember.findMany({
+      where: {
+        providerId: data.providerId,
+        isActive: true,
+        services: {
+          some: {
+            serviceId: data.serviceId,
+          },
+        },
+      },
+      include: {
+        availability: {
+          where: {
+            dayOfWeek,
+            isBlocked: false,
+          },
+        },
+        bookings: {
+          where: {
+            bookingDate: date,
+            status: {
+              notIn: ['CANCELLED'],
+            },
+          },
+        },
+      },
+    })
+
+    // Generate time slots (15-minute intervals)
+    const slots: Array<{ time: string; staff: any }> = []
+    const service = await prisma.service.findUnique({
+      where: { id: data.serviceId },
+    })
+
+    if (!service) {
+      return { slots: [] }
+    }
+
+    staff.forEach((member) => {
+      member.availability.forEach((av) => {
+        const [startHour, startMin] = av.startTime.split(':').map(Number)
+        const [endHour, endMin] = av.endTime.split(':').map(Number)
+        const startMinutes = startHour * 60 + startMin
+        const endMinutes = endHour * 60 + endMin
+
+        for (let minutes = startMinutes; minutes + service.duration <= endMinutes; minutes += 15) {
+          const slotHour = Math.floor(minutes / 60)
+          const slotMin = minutes % 60
+          const timeString = `${slotHour.toString().padStart(2, '0')}:${slotMin.toString().padStart(2, '0')}`
+
+          // Check if slot conflicts with existing bookings
+          const slotEndMinutes = minutes + service.duration
+          const slotEndTime = `${Math.floor(slotEndMinutes / 60).toString().padStart(2, '0')}:${(slotEndMinutes % 60).toString().padStart(2, '0')}`
+
+          const hasConflict = member.bookings.some((booking) => {
+            return (
+              (timeString >= booking.startTime && timeString < booking.endTime) ||
+              (slotEndTime > booking.startTime && slotEndTime <= booking.endTime) ||
+              (timeString <= booking.startTime && slotEndTime >= booking.endTime)
+            )
+          })
+
+          if (!hasConflict) {
+            slots.push({
+              time: timeString,
+              staff: member,
+            })
+          }
+        }
+      })
+    })
+
+    return { slots }
+  } catch (error) {
+    console.error('Error getting available slots:', error)
+    return { slots: [] }
+  }
+}
