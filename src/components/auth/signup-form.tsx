@@ -1,14 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { signUp, useSession } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Eye, EyeOff } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { getRedirectContext, type AuthFlow } from '@/lib/auth-redirect'
+import { getRedirectPath } from '@/lib/auth-utils'
 
 export function SignUpForm() {
   const router = useRouter()
@@ -20,15 +29,36 @@ export function SignUpForm() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [justSignedUp, setJustSignedUp] = useState(false)
+  const sessionRef = useRef(session)
+
+  // Keep session ref updated
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
 
   // Redirect if already signed in (use useEffect to avoid render-time navigation)
+  // BUT: Don't redirect if we just signed up (let onSuccess handle it)
   useEffect(() => {
-    if (session) {
-      router.push('/dashboard')
+    if (session?.user?.id && !justSignedUp) {
+      // Check if we're coming from a successful provider signup
+      const urlParams = new URLSearchParams(window.location.search)
+      const signupFlow = urlParams.get('flow') as AuthFlow | null
+
+      // If this is a provider signup flow, redirect to onboarding
+      if (signupFlow === 'provider-signup') {
+        router.push('/onboarding?flow=provider-signup')
+        return
+      }
+
+      // Otherwise, determine user type and redirect accordingly
+      getRedirectContext(session.user.id, signupFlow || null).then(async context => {
+        const redirectPath = getRedirectPath(context)
+        router.push(redirectPath)
+      })
     }
-  }, [session, router])
+  }, [session, router, justSignedUp])
 
   // Don't render form if already signed in
   if (session) {
@@ -37,7 +67,6 @@ export function SignUpForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
 
     if (password !== confirmPassword) {
       toast({
@@ -73,20 +102,50 @@ export function SignUpForm() {
           onResponse: () => {
             setLoading(false)
           },
-          onError: (ctx) => {
-            toast({
-              title: 'Sign Up Failed',
-              description: ctx.error.message || 'Failed to create account. Please try again.',
-              variant: 'destructive',
-            })
+          onError: ctx => {
+            // Check for duplicate email error
+            const errorMessage = ctx.error.message || ''
+            const errorStatus = ctx.error.status || 0
+            const errorData = ctx.error.data || {}
+
+            // Better Auth returns 422 for validation errors including duplicate emails
+            // Check multiple indicators for duplicate email
+            const isDuplicateEmail =
+              errorStatus === 422 ||
+              (errorMessage.toLowerCase().includes('email') &&
+                (errorMessage.toLowerCase().includes('already') ||
+                  errorMessage.toLowerCase().includes('exists') ||
+                  errorMessage.toLowerCase().includes('unique') ||
+                  errorMessage.toLowerCase().includes('taken') ||
+                  errorData?.email?.includes('already') ||
+                  errorData?.email?.includes('exists') ||
+                  errorData?.email?.includes('unique')))
+
+            if (isDuplicateEmail) {
+              toast({
+                title: 'Email Already Registered',
+                description: `The email address "${email}" is already registered. Please sign in instead or use a different email address.`,
+                variant: 'destructive',
+              })
+            } else {
+              toast({
+                title: 'Sign Up Failed',
+                description: errorMessage || 'Failed to create account. Please try again.',
+                variant: 'destructive',
+              })
+            }
             setLoading(false)
           },
-          onSuccess: () => {
+          onSuccess: async () => {
+            setJustSignedUp(true) // Prevent useEffect from redirecting
             toast({
               title: 'Account Created!',
-              description: 'Welcome to BukinPoint! Let\'s set up your business profile.',
+              description: "Welcome to BukinPoint! Let's set up your business profile.",
             })
-            router.push('/onboarding')
+
+            // Immediately redirect to onboarding (no subdomain yet - will be created during onboarding)
+            // After onboarding completes, user will be redirected to their subdomain
+            router.push('/onboarding?flow=provider-signup')
             router.refresh()
           },
         }
@@ -109,11 +168,6 @@ export function SignUpForm() {
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          {error && (
-            <div className="rounded-md bg-error-light p-3 text-sm text-error">
-              {error}
-            </div>
-          )}
           <div className="space-y-2">
             <label htmlFor="name" className="text-body-sm font-medium">
               Name
@@ -123,7 +177,7 @@ export function SignUpForm() {
               type="text"
               placeholder="John Doe"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={e => setName(e.target.value)}
               required
               disabled={loading}
             />
@@ -137,7 +191,7 @@ export function SignUpForm() {
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               required
               disabled={loading}
             />
@@ -152,7 +206,7 @@ export function SignUpForm() {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
                 disabled={loading}
                 minLength={8}
@@ -165,11 +219,7 @@ export function SignUpForm() {
                 disabled={loading}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             <p className="text-caption">Must be at least 8 characters</p>
@@ -184,7 +234,7 @@ export function SignUpForm() {
                 type={showConfirmPassword ? 'text' : 'password'}
                 placeholder="••••••••"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={e => setConfirmPassword(e.target.value)}
                 required
                 disabled={loading}
                 className="pr-10"
@@ -196,11 +246,7 @@ export function SignUpForm() {
                 disabled={loading}
                 aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
               >
-                {showConfirmPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>

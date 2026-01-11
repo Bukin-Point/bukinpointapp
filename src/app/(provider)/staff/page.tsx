@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth-helpers'
+import { getSession } from '@/lib/auth-helpers-clerk'
+import { getProviderAccess, canManageStaff } from '@/lib/staff-helpers'
 import { prisma } from '@/lib/db'
 import { StaffList } from '@/components/provider/staff-list'
 
@@ -10,16 +11,23 @@ export default async function StaffPage() {
     redirect('/signin')
   }
 
-  const provider = await prisma.provider.findUnique({
-    where: { userId: session.user.id },
-  })
+  // Get provider access (either as provider or staff)
+  const accessContext = await getProviderAccess(session.user.id)
 
-  if (!provider) {
+  if (!accessContext) {
     redirect('/onboarding')
   }
 
+  // Only providers and OWNER role staff can manage staff
+  if (!canManageStaff(accessContext)) {
+    redirect('/dashboard')
+  }
+
+  const providerId = accessContext.provider.id
+
+  // Get staff from database
   const staff = await prisma.staffMember.findMany({
-    where: { providerId: provider.id },
+    where: { providerId },
     include: {
       user: {
         select: {
@@ -43,8 +51,14 @@ export default async function StaffPage() {
   })
 
   const services = await prisma.service.findMany({
-    where: { providerId: provider.id, isActive: true },
+    where: { providerId, isActive: true },
   })
+
+  // Convert Decimal fields to numbers for client component
+  const serializedServices = services.map(service => ({
+    ...service,
+    price: Number(service.price),
+  }))
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -54,7 +68,11 @@ export default async function StaffPage() {
           Manage your team members and their service assignments
         </p>
       </div>
-      <StaffList staff={staff} services={services} providerId={provider.id} />
+      <StaffList 
+        staff={staff} 
+        services={serializedServices} 
+        providerId={providerId}
+      />
     </div>
   )
 }

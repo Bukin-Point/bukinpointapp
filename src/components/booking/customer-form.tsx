@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Service } from '@prisma/client'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,13 +20,20 @@ interface CustomerFormProps {
   }) => void
   onBack: () => void
   loading: boolean
+  session?: {
+    user: {
+      id: string
+      name: string | null
+      email: string
+    }
+  } | null
 }
 
-export function CustomerForm({ service, date, time, onSubmit, onBack, loading }: CustomerFormProps) {
+export function CustomerForm({ service, date, time, onSubmit, onBack, loading, session }: CustomerFormProps) {
   const [formData, setFormData] = useState({
-    name: '',
+    name: session?.user?.name || '',
     phone: '',
-    email: '',
+    email: session?.user?.email || '',
     notes: '',
   })
   const [error, setError] = useState('')
@@ -76,6 +84,18 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading }:
               </div>
             </div>
           </div>
+
+          {!session && (
+            <div className="rounded-md bg-muted p-3 text-body-sm">
+              <p className="text-text-secondary">
+                Already have an account?{' '}
+                <Link href="/signin" className="text-link font-medium">
+                  Sign in
+                </Link>
+                {' '}for faster checkout and booking history.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="rounded-md bg-error-light p-3 text-sm text-error">

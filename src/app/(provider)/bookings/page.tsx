@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth-helpers'
+import { getSession } from '@/lib/auth-helpers-clerk'
+import { getProviderAccess, canViewAllBookings } from '@/lib/staff-helpers'
 import { prisma } from '@/lib/db'
 import { BookingList } from '@/components/provider/booking-list'
 
@@ -10,16 +11,35 @@ export default async function BookingsPage() {
     redirect('/signin')
   }
 
-  const provider = await prisma.provider.findUnique({
-    where: { userId: session.user.id },
-  })
+  // Get provider access (either as provider or staff)
+  const accessContext = await getProviderAccess(session.user.id)
 
-  if (!provider) {
+  if (!accessContext) {
     redirect('/onboarding')
   }
 
+  const providerId = accessContext.provider.id
+  const canViewAll = canViewAllBookings(accessContext)
+
+  // Build booking where clause
+  const bookingWhere: any = { providerId }
+
+  // If staff, filter to only their bookings
+  if (!canViewAll && 'staffMember' in accessContext) {
+    const staffMember = await prisma.staffMember.findFirst({
+      where: {
+        providerId,
+        userId: session.user.id,
+      },
+    })
+
+    if (staffMember) {
+      bookingWhere.staffId = staffMember.id
+    }
+  }
+
   const bookings = await prisma.booking.findMany({
-    where: { providerId: provider.id },
+    where: bookingWhere,
     include: {
       service: {
         select: {
@@ -45,11 +65,9 @@ export default async function BookingsPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-h1 mb-2">Bookings</h1>
-        <p className="text-body-sm text-text-secondary">
-          View and manage customer bookings
-        </p>
+        <p className="text-body-sm text-text-secondary">View and manage customer bookings</p>
       </div>
-      <BookingList bookings={bookings} providerId={provider.id} />
+      <BookingList bookings={bookings} providerId={providerId} />
     </div>
   )
 }

@@ -4,11 +4,17 @@ import { prisma } from '@/lib/db'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { lockSlot, releaseSlot } from '@/lib/redis'
+import { getSession } from '@/lib/auth-helpers-clerk'
+import {
+  sendBookingConfirmationEmail,
+  sendProviderBookingNotificationEmail,
+} from '@/lib/email'
 
 const createBookingSchema = z.object({
   providerId: z.string(),
   serviceId: z.string(),
   staffId: z.string(),
+  userId: z.string().optional(), // Optional: link to customer account
   customerName: z.string().min(1, 'Customer name is required'),
   customerPhone: z.string().min(1, 'Phone number is required'),
   customerEmail: z.string().email().optional(),
@@ -20,7 +26,14 @@ const createBookingSchema = z.object({
 
 export async function createBooking(data: z.infer<typeof createBookingSchema>) {
   try {
+    // Get session to check if user is logged in
+    const session = await getSession()
+    const userId = session?.user?.id
+
     const validated = createBookingSchema.parse(data)
+    
+    // Use userId from session if not provided in data
+    const finalUserId = validated.userId || userId || null
 
     // Create lock key for the slot
     const lockKey = `slot:${validated.staffId}:${validated.bookingDate.toISOString()}:${validated.startTime}`
@@ -69,6 +82,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
         providerId: validated.providerId,
         serviceId: validated.serviceId,
         staffId: validated.staffId,
+        userId: finalUserId, // Link to customer account if logged in
         customerName: validated.customerName,
         customerPhone: validated.customerPhone,
         customerEmail: validated.customerEmail,
@@ -77,10 +91,70 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
         endTime: validated.endTime,
         notes: validated.notes,
       },
+      include: {
+        service: { select: { name: true, price: true } },
+        provider: { select: { businessName: true, email: true, phone: true } },
+        staff: { include: { user: { select: { name: true } } } },
+      },
     })
 
       // Keep lock until payment is processed or fails
       // Lock will expire after 5 minutes automatically
+
+      // Send email notifications (non-blocking)
+      const emailPromises: Promise<void>[] = []
+
+      // Send customer confirmation email if email is provided
+      if (booking.customerEmail) {
+        emailPromises.push(
+          sendBookingConfirmationEmail({
+            customerEmail: booking.customerEmail,
+            customerName: booking.customerName,
+            bookingRef: booking.bookingRef,
+            serviceName: booking.service.name,
+            providerBusinessName: booking.provider.businessName,
+            bookingDate: booking.bookingDate,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+            staffName: booking.staff.user.name,
+            price: Number(booking.service.price),
+            providerPhone: booking.provider.phone || undefined,
+          }).catch((error) => {
+            console.error('Error sending customer booking confirmation email:', error)
+          })
+        )
+      }
+
+      // Send provider notification email
+      if (booking.provider.email) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        emailPromises.push(
+          sendProviderBookingNotificationEmail({
+            providerEmail: booking.provider.email,
+            providerBusinessName: booking.provider.businessName,
+            customerName: booking.customerName,
+            customerPhone: booking.customerPhone,
+            customerEmail: booking.customerEmail,
+            bookingRef: booking.bookingRef,
+            serviceName: booking.service.name,
+            bookingDate: booking.bookingDate,
+            startTime: booking.startTime,
+            endTime: booking.endTime,
+            staffName: booking.staff.user.name,
+            price: Number(booking.service.price),
+            bookingUrl: `${appUrl}/bookings`,
+          }).catch((error) => {
+            console.error('Error sending provider booking notification email:', error)
+          })
+        )
+      }
+
+      // Send emails in parallel (don't wait for them to complete)
+      if (emailPromises.length > 0) {
+        Promise.all(emailPromises).catch((error) => {
+          console.error('Error sending booking emails:', error)
+        })
+      }
 
       revalidatePath(`/book/${validated.providerId}`)
       return { success: true, booking, lockKey }

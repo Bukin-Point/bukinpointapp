@@ -12,9 +12,10 @@ import { Plus, Trash2, Edit } from 'lucide-react'
 interface ServiceListProps {
   services: Service[]
   providerId: string
+  canEdit?: boolean
 }
 
-export function ServiceList({ services: initialServices, providerId }: ServiceListProps) {
+export function ServiceList({ services: initialServices, providerId, canEdit = true }: ServiceListProps) {
   const [services, setServices] = useState(initialServices)
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -59,17 +60,19 @@ export function ServiceList({ services: initialServices, providerId }: ServiceLi
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => {
-          setEditingService(null)
-          setShowForm(true)
-        }}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Service
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex justify-end">
+          <Button onClick={() => {
+            setEditingService(null)
+            setShowForm(true)
+          }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Service
+          </Button>
+        </div>
+      )}
 
-      {showForm && (
+      {canEdit && showForm && (
         <ServiceForm
           providerId={providerId}
           service={editingService || undefined}
@@ -117,25 +120,27 @@ export function ServiceList({ services: initialServices, providerId }: ServiceLi
                     </span>
                   </div>
                 </div>
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(service)}
-                  >
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(service.id)}
-                    disabled={loading === service.id}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {loading === service.id ? 'Deleting...' : 'Delete'}
-                  </Button>
-                </div>
+                {canEdit && (
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(service)}
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(service.id)}
+                      disabled={loading === service.id}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      {loading === service.id ? 'Deleting...' : 'Delete'}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

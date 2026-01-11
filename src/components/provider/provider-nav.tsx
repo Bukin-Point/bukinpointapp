@@ -3,35 +3,69 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calendar, Briefcase, Users, Clock, Wallet, LogOut, Menu, X } from 'lucide-react'
+import {
+  Home,
+  Calendar,
+  Briefcase,
+  Users,
+  Clock,
+  Wallet,
+  LogOut,
+  Menu,
+  X,
+  Settings,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { signOut } from '@/lib/auth-client'
+import { useClerk } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
+import { AccessContext, canManageStaff, isStaff } from '@/lib/staff-helpers-client'
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/bookings', label: 'Bookings', icon: Calendar },
-  { href: '/services', label: 'Services', icon: Briefcase },
-  { href: '/staff', label: 'Staff', icon: Users },
-  { href: '/availability', label: 'Availability', icon: Clock },
-  { href: '/wallet', label: 'Wallet', icon: Wallet },
+const allNavItems = [
+  { href: '/dashboard', label: 'Dashboard', icon: Home, requiresOwner: false },
+  { href: '/bookings', label: 'Bookings', icon: Calendar, requiresOwner: false },
+  { href: '/services', label: 'Services', icon: Briefcase, requiresOwner: false },
+  { href: '/staff', label: 'Staff', icon: Users, requiresOwner: true },
+  { href: '/availability', label: 'Availability', icon: Clock, requiresOwner: false },
+  { href: '/wallet', label: 'Wallet', icon: Wallet, requiresOwner: true },
+  { href: '/settings', label: 'Settings', icon: Settings, requiresOwner: true },
 ]
 
-export function ProviderNav({ businessName }: { businessName: string }) {
+export function ProviderNav({
+  businessName,
+  accessContext,
+  userId,
+}: {
+  businessName: string
+  accessContext: AccessContext
+  userId: string
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { signOut } = useClerk()
 
   const handleSignOut = async () => {
     await signOut()
-    router.push('/signin')
+    router.push('/auth')
   }
+
+  // Filter nav items based on permissions
+  const navItems = allNavItems.filter(item => {
+    if (item.requiresOwner) {
+      return canManageStaff(accessContext)
+    }
+    return true
+  })
+
+  const userIsStaff = isStaff(accessContext)
 
   return (
     <>
       {/* Mobile Menu Button */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b bg-card p-4 lg:hidden">
-        <h2 className="text-h4 font-semibold truncate">{businessName}</h2>
+        <div className="flex-1 min-w-0 mr-2">
+          <h2 className="text-h4 font-semibold">{businessName}</h2>
+        </div>
         <Button
           variant="ghost"
           size="icon"
@@ -60,7 +94,9 @@ export function ProviderNav({ businessName }: { businessName: string }) {
           {/* Header */}
           <div className=" hidden  md:inline border-b p-6 pt-20 lg:pt-6">
             <h2 className="text-h4 font-semibold">{businessName}</h2>
-            <p className="text-caption text-text-secondary">Provider Portal</p>
+            <p className="text-caption text-text-secondary">
+              {userIsStaff ? 'Staff Portal' : 'Provider Portal'}
+            </p>
           </div>
 
           {/* Navigation */}

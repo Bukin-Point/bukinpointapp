@@ -5,9 +5,18 @@ import { StaffMember, Service } from '@prisma/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { StaffForm } from '@/components/provider/staff-form'
 import { deleteStaff, toggleStaffStatus } from '@/actions/staff'
-import { Plus, Trash2, UserX, UserCheck } from 'lucide-react'
+import { Plus, Trash2, UserX, UserCheck, Edit } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 type StaffWithRelations = StaffMember & {
   user: {
@@ -27,49 +36,109 @@ interface StaffListProps {
   staff: StaffWithRelations[]
   services: Service[]
   providerId: string
+  clerkMembers?: Array<{
+    id: string
+    role: string
+    publicUserData: {
+      userId: string
+      firstName?: string | null
+      lastName?: string | null
+      imageUrl?: string
+      identifier: string
+    }
+  }>
 }
 
-export function StaffList({ staff: initialStaff, services, providerId }: StaffListProps) {
+export function StaffList({ staff: initialStaff, services, providerId, clerkMembers }: StaffListProps) {
+  const { toast } = useToast()
   const [staff, setStaff] = useState(initialStaff)
   const [editingStaff, setEditingStaff] = useState<StaffWithRelations | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false)
+  const [activateDialogOpen, setActivateDialogOpen] = useState(false)
+  const [staffToAction, setStaffToAction] = useState<StaffWithRelations | null>(null)
 
-  const handleDelete = async (staffId: string) => {
-    if (!confirm('Are you sure you want to remove this staff member?')) {
-      return
-    }
+  const handleDeleteClick = (member: StaffWithRelations) => {
+    setStaffToAction(member)
+    setDeleteDialogOpen(true)
+  }
 
-    setLoading(staffId)
+  const handleDelete = async () => {
+    if (!staffToAction) return
+
+    setLoading(staffToAction.id)
+    setDeleteDialogOpen(false)
     try {
-      const result = await deleteStaff(staffId)
+      const result = await deleteStaff(staffToAction.id)
       if (result.success) {
-        setStaff((prev) => prev.filter((s) => s.id !== staffId))
+        setStaff((prev) => prev.filter((s) => s.id !== staffToAction.id))
+        toast({
+          title: 'Staff Member Removed',
+          description: `${staffToAction.user.name || staffToAction.user.email} has been removed from your team.`,
+        })
       } else {
-        alert(result.error || 'Failed to delete staff member')
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to remove staff member',
+          variant: 'destructive',
+        })
       }
     } catch (error) {
-      alert('An error occurred')
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(null)
+      setStaffToAction(null)
     }
   }
 
-  const handleToggleStatus = async (staffId: string, currentStatus: boolean) => {
-    setLoading(staffId)
+  const handleToggleStatusClick = (member: StaffWithRelations) => {
+    setStaffToAction(member)
+    if (member.isActive) {
+      setDeactivateDialogOpen(true)
+    } else {
+      setActivateDialogOpen(true)
+    }
+  }
+
+  const handleToggleStatus = async () => {
+    if (!staffToAction) return
+
+    const newStatus = !staffToAction.isActive
+    setLoading(staffToAction.id)
+    setDeactivateDialogOpen(false)
+    setActivateDialogOpen(false)
     try {
-      const result = await toggleStaffStatus(staffId, !currentStatus)
+      const result = await toggleStaffStatus(staffToAction.id, newStatus)
       if (result.success) {
         setStaff((prev) =>
-          prev.map((s) => (s.id === staffId ? { ...s, isActive: !currentStatus } : s))
+          prev.map((s) => (s.id === staffToAction.id ? { ...s, isActive: newStatus } : s))
         )
+        toast({
+          title: newStatus ? 'Staff Member Activated' : 'Staff Member Deactivated',
+          description: `${staffToAction.user.name || staffToAction.user.email} has been ${newStatus ? 'activated' : 'deactivated'}.`,
+        })
       } else {
-        alert(result.error || 'Failed to update staff status')
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to update staff status',
+          variant: 'destructive',
+        })
       }
     } catch (error) {
-      alert('An error occurred')
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(null)
+      setStaffToAction(null)
     }
   }
 
@@ -152,7 +221,19 @@ export function StaffList({ staff: initialStaff, services, providerId }: StaffLi
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleToggleStatus(member.id, member.isActive)}
+                    onClick={() => {
+                      setEditingStaff(member)
+                      setShowForm(true)
+                    }}
+                    disabled={loading === member.id}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleToggleStatusClick(member)}
                     disabled={loading === member.id}
                   >
                     {member.isActive ? (
@@ -170,7 +251,7 @@ export function StaffList({ staff: initialStaff, services, providerId }: StaffLi
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => handleDelete(member.id)}
+                    onClick={() => handleDeleteClick(member)}
                     disabled={loading === member.id}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -182,6 +263,102 @@ export function StaffList({ staff: initialStaff, services, providerId }: StaffLi
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Staff Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove {staffToAction?.user.name || staffToAction?.user.email} from your team?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false)
+                setStaffToAction(null)
+              }}
+              disabled={loading === staffToAction?.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={loading === staffToAction?.id}
+            >
+              {loading === staffToAction?.id ? 'Removing...' : 'Remove'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate Confirmation Dialog */}
+      <Dialog open={deactivateDialogOpen} onOpenChange={setDeactivateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate Staff Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to deactivate {staffToAction?.user.name || staffToAction?.user.email}?
+              They will no longer be able to access the dashboard, but you can reactivate them later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeactivateDialogOpen(false)
+                setStaffToAction(null)
+              }}
+              disabled={loading === staffToAction?.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleToggleStatus}
+              disabled={loading === staffToAction?.id}
+            >
+              {loading === staffToAction?.id ? 'Deactivating...' : 'Deactivate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Activate Confirmation Dialog */}
+      <Dialog open={activateDialogOpen} onOpenChange={setActivateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Activate Staff Member</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to activate {staffToAction?.user.name || staffToAction?.user.email}?
+              They will regain access to the dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setActivateDialogOpen(false)
+                setStaffToAction(null)
+              }}
+              disabled={loading === staffToAction?.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleToggleStatus}
+              disabled={loading === staffToAction?.id}
+            >
+              {loading === staffToAction?.id ? 'Activating...' : 'Activate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

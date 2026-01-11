@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth-helpers'
+import { getSession } from '@/lib/auth-helpers-clerk'
+import { getProviderAccess, canManageStaff } from '@/lib/staff-helpers'
 import { prisma } from '@/lib/db'
 import { WalletView } from '@/components/provider/wallet-view'
 
@@ -10,8 +11,20 @@ export default async function WalletPage() {
     redirect('/signin')
   }
 
+  // Get provider access (either as provider or staff)
+  const accessContext = await getProviderAccess(session.user.id)
+
+  if (!accessContext) {
+    redirect('/onboarding')
+  }
+
+  // Only providers and OWNER role staff can access wallet
+  if (!canManageStaff(accessContext)) {
+    redirect('/dashboard')
+  }
+
   const provider = await prisma.provider.findUnique({
-    where: { userId: session.user.id },
+    where: { id: accessContext.provider.id },
     include: {
       wallet: true,
     },
@@ -53,7 +66,7 @@ export default async function WalletPage() {
     totalEarnings: Number(provider.wallet.totalEarnings),
   }
 
-  const serializedTransactions = transactions.map((transaction) => ({
+  const serializedTransactions = transactions.map(transaction => ({
     ...transaction,
     amount: Number(transaction.amount),
     platformFee: Number(transaction.platformFee),

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Provider, Service, StaffMember } from '@prisma/client'
 import { ServiceSelector } from './service-selector'
@@ -24,19 +24,45 @@ type ProviderWithRelations = Provider & {
 
 interface BookingFlowProps {
   provider: ProviderWithRelations
+  session?: {
+    user: {
+      id: string
+      name: string | null
+      email: string
+    }
+  } | null
+  initialServiceId?: string
 }
 
 type BookingStep = 'service' | 'time' | 'customer' | 'confirming'
 
-export function BookingFlow({ provider }: BookingFlowProps) {
+export function BookingFlow({ provider, session, initialServiceId }: BookingFlowProps) {
   const router = useRouter()
-  const [step, setStep] = useState<BookingStep>('service')
-  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  
+  // If initialServiceId is provided, find and pre-select the service
+  const initialService = initialServiceId
+    ? provider.services.find((s) => s.id === initialServiceId) || null
+    : null
+
+  const [step, setStep] = useState<BookingStep>(initialService ? 'time' : 'service')
+  const [selectedService, setSelectedService] = useState<Service | null>(initialService)
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // If initialService is set, also set initial staff
+  useEffect(() => {
+    if (initialService && !selectedStaff) {
+      const availableStaff = provider.staff.filter((staff) =>
+        staff.services.some((ss) => ss.service.id === initialService.id)
+      )
+      if (availableStaff.length > 0) {
+        setSelectedStaff(availableStaff[0])
+      }
+    }
+  }, [initialService, selectedStaff, provider.staff])
 
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service)
@@ -139,6 +165,7 @@ export function BookingFlow({ provider }: BookingFlowProps) {
           onSubmit={handleCustomerSubmit}
           onBack={() => setStep('time')}
           loading={loading}
+          session={session}
         />
       )}
     </div>

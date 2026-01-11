@@ -67,10 +67,23 @@ Edit `.env` and set these required values:
    NEXT_PUBLIC_APP_URL="http://localhost:3000"
    ```
 
+6. **RESEND_API_KEY** - Resend email service API key (for staff invitations)
+   ```env
+   RESEND_API_KEY="re_xxxxxxxxxxxxx"
+   ```
+   
+   **How to get it:**
+   - Sign up at https://resend.com
+   - Go to API Keys section
+   - Create a new API key
+   - Copy the key (starts with `re_`)
+   - For production: Verify your domain in Resend dashboard
+
 ### Optional Variables:
 
 - `PLATFORM_FEE_PERCENTAGE="10"` (default: 10)
 - `SLOT_LOCK_TTL="300"` (default: 300 seconds = 5 minutes)
+- `RESEND_FROM_EMAIL="BukinPoint <onboarding@resend.dev>"` (default: uses Resend test domain)
 
 ## Step 3: Run Database Migrations
 
