@@ -72,7 +72,10 @@ export async function createAvailability(data: z.infer<typeof availabilitySchema
     return { success: true, availability }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.issues[0]?.message || 'Validation error' }
+      // Handle Zod v4 API - use issues property
+      const issues = 'issues' in error ? error.issues : []
+      const firstIssue = issues[0]
+      return { error: firstIssue?.message || 'Validation error' }
     }
     console.error('Error creating availability:', error)
     return { error: 'Failed to create availability' }
