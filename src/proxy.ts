@@ -67,7 +67,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   }
 
   // Skip main domains and reserved subdomains
-  const mainDomains = ['www', 'app', 'api', 'admin']
+  const mainDomains = ['www', 'app', 'api', 'admin', 'dev', 'stage', 'stagging']
   if (mainDomains.includes(subdomain) || !subdomain) {
     return NextResponse.next()
   }
