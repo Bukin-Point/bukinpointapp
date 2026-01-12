@@ -26,9 +26,9 @@ export function StaffSignUpFormClerk({ invitationToken, invitationEmail }: Staff
           routing="path"
           path="/signup/staff"
           signInUrl="/signin"
-          afterSignUpUrl={`/signup/staff/accept?token=${token}`}
-          forceRedirectUrl={`/signup/staff/accept?token=${token}`}
-          fallbackRedirectUrl={`/signup/staff/accept?token=${token}`}
+          afterSignUpUrl={`/auth/redirect-provider?flow=staff-signup&token=${token}`}
+          forceRedirectUrl={`/auth/redirect-provider?flow=staff-signup&token=${token}`}
+          fallbackRedirectUrl={`/auth/redirect-provider?flow=staff-signup&token=${token}`}
           initialValues={invitationEmail ? { emailAddress: invitationEmail } : undefined}
           appearance={{
             elements: {

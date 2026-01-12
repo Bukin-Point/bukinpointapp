@@ -11,8 +11,9 @@ export function CustomerSignUpFormClerk() {
         routing="path"
         path="/signup/customer"
         signInUrl="/signin"
-        forceRedirectUrl="/customer/dashboard?flow=customer-signup"
-        fallbackRedirectUrl="/customer/dashboard?flow=customer-signup"
+        afterSignUpUrl="/auth/redirect-customer?flow=customer-signup"
+        forceRedirectUrl="/auth/redirect-customer?flow=customer-signup"
+        fallbackRedirectUrl="/auth/redirect-customer?flow=customer-signup"
         appearance={{
           elements: {
             captcha: {

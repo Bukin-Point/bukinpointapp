@@ -13,8 +13,9 @@ export function SignUpFormClerk() {
         routing="path"
         path="/signup"
         signInUrl="/signin"
-        forceRedirectUrl="/onboarding?flow=provider-signup"
-        fallbackRedirectUrl="/onboarding?flow=provider-signup"
+        afterSignUpUrl="/auth/redirect-provider?flow=provider-signup"
+        forceRedirectUrl="/auth/redirect-provider?flow=provider-signup"
+        fallbackRedirectUrl="/auth/redirect-provider?flow=provider-signup"
         appearance={{
           elements: {
             captcha: {

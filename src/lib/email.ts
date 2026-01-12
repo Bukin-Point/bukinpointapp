@@ -64,9 +64,11 @@ export async function sendStaffInvitationEmail(
     return { success: false, error: 'Email service not configured' }
   }
 
-  // Determine from address - use env var or default
+  // Use onboarding email address for staff invitations
   const fromAddress =
-    process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@resend.dev>'
+    process.env.RESEND_ONBOARDING_EMAIL || 
+    process.env.RESEND_FROM_EMAIL || 
+    'BukinPoint <onboarding@bukinpoint.com>'
 
   // In development, send to dev email instead of actual recipient
   const isDevelopment = process.env.NODE_ENV === 'development'
@@ -153,8 +155,11 @@ export async function sendBookingConfirmationEmail(
     return { success: false, error: 'Email service not configured' }
   }
 
+  // Use bookings email address for booking-related emails
   const fromAddress =
-    process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@resend.dev>'
+    process.env.RESEND_BOOKINGS_EMAIL || 
+    process.env.RESEND_FROM_EMAIL || 
+    'BukinPoint <bookings@bukinpoint.com>'
 
   const isDevelopment = process.env.NODE_ENV === 'development'
   const devEmail = process.env.DEV_EMAIL || 'sholajapheth@gmail.com'
@@ -277,8 +282,11 @@ export async function sendProviderBookingNotificationEmail(
     return { success: false, error: 'Email service not configured' }
   }
 
+  // Use bookings email address for booking-related emails
   const fromAddress =
-    process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@resend.dev>'
+    process.env.RESEND_BOOKINGS_EMAIL || 
+    process.env.RESEND_FROM_EMAIL || 
+    'BukinPoint <bookings@bukinpoint.com>'
 
   const isDevelopment = process.env.NODE_ENV === 'development'
   const devEmail = process.env.DEV_EMAIL || 'sholajapheth@gmail.com'
@@ -422,8 +430,11 @@ export async function sendBookingStatusUpdateEmail(
     return { success: false, error: 'Email service not configured' }
   }
 
+  // Use bookings email address for booking-related emails
   const fromAddress =
-    process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@resend.dev>'
+    process.env.RESEND_BOOKINGS_EMAIL || 
+    process.env.RESEND_FROM_EMAIL || 
+    'BukinPoint <bookings@bukinpoint.com>'
 
   const isDevelopment = process.env.NODE_ENV === 'development'
   const devEmail = process.env.DEV_EMAIL || 'sholajapheth@gmail.com'

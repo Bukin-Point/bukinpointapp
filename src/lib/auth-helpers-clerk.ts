@@ -49,13 +49,36 @@ export async function getSession() {
 }
 
 /**
+ * Get user type from Clerk metadata (fast lookup)
+ */
+export async function getUserTypeFromMetadata(): Promise<'provider' | 'staff' | 'customer' | null> {
+  try {
+    const user = await currentUser()
+    if (user?.publicMetadata?.accountType) {
+      return user.publicMetadata.accountType as 'provider' | 'staff' | 'customer'
+    }
+  } catch (error) {
+    console.warn('Error reading Clerk metadata:', error)
+  }
+  return null
+}
+
+/**
  * Get user type (provider, staff, or customer)
+ * Checks Clerk metadata first, then falls back to database lookup
  */
 export async function getUserType(session: { user: { id: string } } | null): Promise<'provider' | 'staff' | 'customer' | null> {
   if (!session?.user?.id) {
     return null
   }
 
+  // Check Clerk metadata first (faster, no database query)
+  const metadataType = await getUserTypeFromMetadata()
+  if (metadataType) {
+    return metadataType
+  }
+
+  // Fallback to database lookup if metadata not available
   // Check if user is a provider
   const provider = await prisma.provider.findUnique({
     where: { userId: session.user.id },

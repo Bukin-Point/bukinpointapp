@@ -3,7 +3,18 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calendar, Briefcase, Users, Clock, Wallet, LogOut, Menu, X, Settings } from 'lucide-react'
+import {
+  Home,
+  Calendar,
+  Briefcase,
+  Users,
+  Clock,
+  Wallet,
+  LogOut,
+  Menu,
+  X,
+  Settings,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useClerk } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
@@ -23,7 +34,7 @@ function NavLink({
   onClick: () => void
   children: React.ReactNode
 }) {
-  const selectedProviderId = useProviderContext((state) => state.selectedProviderId)
+  const selectedProviderId = useProviderContext(state => state.selectedProviderId)
   const finalHref = selectedProviderId ? `${href}?providerId=${selectedProviderId}` : href
 
   return (
@@ -70,9 +81,9 @@ export function ProviderNav({
   const [internalMobileMenuOpen, setInternalMobileMenuOpen] = useState(false)
 
   // Use external state if provided, otherwise use internal state
-  const mobileMenuOpen = externalMobileMenuOpen !== undefined ? externalMobileMenuOpen : internalMobileMenuOpen
-  const toggleMobileMenu =
-    externalOnMenuToggle || (() => setInternalMobileMenuOpen(prev => !prev))
+  const mobileMenuOpen =
+    externalMobileMenuOpen !== undefined ? externalMobileMenuOpen : internalMobileMenuOpen
+  const toggleMobileMenu = externalOnMenuToggle || (() => setInternalMobileMenuOpen(prev => !prev))
 
   const handleSignOut = async () => {
     await signOut()
@@ -80,7 +91,7 @@ export function ProviderNav({
   }
 
   // Filter nav items based on permissions
-  const navItems = allNavItems.filter((item) => {
+  const navItems = allNavItems.filter(item => {
     if (item.requiresOwner) {
       return canManageStaff(accessContext)
     }
@@ -96,12 +107,7 @@ export function ProviderNav({
         <div className="flex-1 min-w-0 mr-2">
           <ProviderSelector userId={userId} />
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleMobileMenu}
-          aria-label="Toggle menu"
-        >
+        <Button variant="ghost" size="icon" onClick={toggleMobileMenu} aria-label="Toggle menu">
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </Button>
       </div>
@@ -132,10 +138,24 @@ export function ProviderNav({
             <div className="mb-2">
               <ProviderSelector userId={userId} />
             </div>
-            <h2 className="text-h4 font-semibold">{businessName}</h2>
-            <p className="text-caption text-text-secondary">
-              {userIsStaff ? 'Staff Portal' : 'Provider Portal'}
-            </p>
+            <Link
+              href="/"
+              className="block group"
+              onClick={() => {
+                if (externalOnMenuToggle) {
+                  externalOnMenuToggle()
+                } else {
+                  setInternalMobileMenuOpen(false)
+                }
+              }}
+            >
+              <h2 className="text-h4 font-semibold group-hover:text-primary group-hover:underline transition-all cursor-pointer">
+                {businessName}
+              </h2>
+              <p className="text-caption text-text-secondary group-hover:text-primary/70 transition-colors">
+                {userIsStaff ? 'Staff Portal' : 'Provider Portal'} • Click to go home
+              </p>
+            </Link>
           </div>
 
           {/* Navigation */}

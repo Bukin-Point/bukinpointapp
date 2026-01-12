@@ -76,8 +76,9 @@ export async function getUserTypeAction(
 /**
  * Get post-signin redirect URL (server action)
  * Called directly from onSuccess callback - no polling, no useEffect needed
+ * @param requestedType - Optional type requested by user ('provider' | 'customer')
  */
-export async function getPostSigninRedirectUrl(): Promise<string | null> {
+export async function getPostSigninRedirectUrl(requestedType?: string): Promise<string | null> {
   try {
     // Get session from cookies/headers (server-side)
     const session = await getSession()
@@ -131,6 +132,17 @@ export async function getPostSigninRedirectUrl(): Promise<string | null> {
       context = { userType: userType || 'customer' }
     }
 
+    // If user explicitly requested customer type and they are actually a customer,
+    // redirect to customer dashboard even if they might have provider access
+    if (requestedType === 'customer' && context.userType === 'customer') {
+      return '/customer/dashboard'
+    }
+
+    // If user requested provider type but is actually a customer, still redirect to customer dashboard
+    if (requestedType === 'provider' && context.userType === 'customer') {
+      return '/customer/dashboard'
+    }
+
     // Determine path based on context
     let path = '/dashboard'
     if (context.flow === 'provider-signup') {
@@ -174,6 +186,10 @@ export async function getPostSigninRedirectUrl(): Promise<string | null> {
     return redirectUrl
   } catch (error) {
     console.error('Error in getPostSigninRedirectUrl:', error)
+    // Fallback based on requested type
+    if (requestedType === 'customer') {
+      return '/customer/dashboard'
+    }
     // Fallback to main domain dashboard
     return '/dashboard'
   }

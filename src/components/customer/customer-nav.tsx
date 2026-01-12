@@ -29,7 +29,18 @@ export function CustomerNav({ userName }: { userName: string }) {
     <>
       {/* Mobile Menu Button */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b bg-card p-4 lg:hidden">
-        <h2 className="text-h4 font-semibold truncate">{userName}</h2>
+        <Link
+          href="/"
+          className="group flex-1 min-w-0 mr-2"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <h2 className="text-h4 font-semibold truncate group-hover:text-primary group-hover:underline transition-all cursor-pointer">
+            {userName}
+          </h2>
+          <p className="text-xs text-text-secondary group-hover:text-primary/70 transition-colors truncate">
+            Click to go home
+          </p>
+        </Link>
         <Button
           variant="ghost"
           size="icon"
@@ -57,13 +68,19 @@ export function CustomerNav({ userName }: { userName: string }) {
         <div className="flex h-full flex-col">
           {/* Header */}
           <div className="hidden md:inline border-b p-6 pt-20 lg:pt-6">
-            <h2 className="text-h4 font-semibold">{userName}</h2>
-            <p className="text-caption text-text-secondary">Customer Portal</p>
+            <Link href="/" className="block group" onClick={() => setMobileMenuOpen(false)}>
+              <h2 className="text-h4 font-semibold group-hover:text-primary group-hover:underline transition-all cursor-pointer">
+                {userName}
+              </h2>
+              <p className="text-caption text-text-secondary group-hover:text-primary/70 transition-colors">
+                Customer Portal • Click to go home
+              </p>
+            </Link>
           </div>
 
           {/* Navigation */}
           <nav className="mt-[5em] md:mt-0 flex-1 space-y-1 overflow-y-auto p-4">
-            {navItems.map((item) => {
+            {navItems.map(item => {
               const Icon = item.icon
               const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
 

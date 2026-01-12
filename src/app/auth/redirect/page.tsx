@@ -9,10 +9,11 @@ export const revalidate = 0
 export default async function AuthRedirectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ flow?: string }>
+  searchParams: Promise<{ flow?: string; type?: string }>
 }) {
   const params = await searchParams
   const flow = params?.flow
+  const requestedType = params?.type // 'provider' or 'customer' from sign-in page
 
   const session = await getSession()
 
@@ -87,12 +88,18 @@ export default async function AuthRedirectPage({
   }
 
   // Get redirect URL based on user state (provider/staff/customer)
-  const redirectUrl = await getPostSigninRedirectUrl()
+  // If user explicitly requested a type, respect it (but still validate user's actual type)
+  const redirectUrl = await getPostSigninRedirectUrl(requestedType)
 
   if (redirectUrl) {
     redirect(redirectUrl)
   }
 
-  // Fallback to dashboard
+  // Fallback based on requested type
+  if (requestedType === 'customer') {
+    redirect('/customer/dashboard')
+  }
+
+  // Default fallback to provider dashboard
   redirect('/dashboard')
 }

@@ -22,7 +22,7 @@ export async function GET() {
           success: true,
           message: `Test email sent successfully to ${testEmail}`,
           details: {
-            from: process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@resend.dev>',
+            from: process.env.RESEND_ONBOARDING_EMAIL || process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@bukinpoint.com>',
             to: testEmail,
             businessName,
             role,
@@ -37,7 +37,7 @@ export async function GET() {
           error: result.error || 'Failed to send email',
           details: {
             configured: !!process.env.RESEND_API_KEY,
-            fromEmail: process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@resend.dev>',
+            fromEmail: process.env.RESEND_ONBOARDING_EMAIL || process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@bukinpoint.com>',
           },
         },
         { status: 500 }
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
           success: true,
           message: `Test email sent successfully to ${email}`,
           details: {
-            from: process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@resend.dev>',
+            from: process.env.RESEND_ONBOARDING_EMAIL || process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@bukinpoint.com>',
             to: email,
             businessName,
             role,
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
           error: result.error || 'Failed to send email',
           details: {
             configured: !!process.env.RESEND_API_KEY,
-            fromEmail: process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@resend.dev>',
+            fromEmail: process.env.RESEND_ONBOARDING_EMAIL || process.env.RESEND_FROM_EMAIL || 'BukinPoint <onboarding@bukinpoint.com>',
           },
         },
         { status: 500 }

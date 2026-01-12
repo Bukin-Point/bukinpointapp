@@ -80,7 +80,9 @@ SLOT_LOCK_TTL="300"
 
 # Email Service (Resend)
 RESEND_API_KEY="re_xxxxxxxxxxxxx"
-RESEND_FROM_EMAIL="BukinPoint <onboarding@resend.dev>"  # Optional: Use verified domain in production
+RESEND_ONBOARDING_EMAIL="BukinPoint <onboarding@bukinpoint.com>"  # For staff invitations and onboarding
+RESEND_BOOKINGS_EMAIL="BukinPoint <bookings@bukinpoint.com>"  # For booking confirmations and updates
+RESEND_FROM_EMAIL="BukinPoint <onboarding@resend.dev>"  # Fallback if specific emails not set (development only)
 
 # Image Storage (Cloudflare R2)
 CLOUDFLARE_R2_ACCOUNT_ID="your-account-id"
@@ -163,10 +165,46 @@ RESEND_API_KEY="re_xxxxxxxxxxxxx"
 - **Important**: You must verify a domain in Resend dashboard for production
 - Update `RESEND_FROM_EMAIL` to use your verified domain
 
-### RESEND_FROM_EMAIL (Optional)
+### RESEND_ONBOARDING_EMAIL (Recommended)
 
 **What it is:**
-The "from" email address for sent emails. Defaults to `BukinPoint <onboarding@resend.dev>` if not set.
+The "from" email address for onboarding-related emails (staff invitations, account setup, etc.).
+
+**Development:**
+```env
+RESEND_ONBOARDING_EMAIL="BukinPoint <onboarding@resend.dev>"
+```
+
+**Production:**
+```env
+RESEND_ONBOARDING_EMAIL="BukinPoint <onboarding@bukinpoint.com>"
+```
+- Must use a verified domain in Resend
+- Format: `Display Name <email@domain.com>`
+- **Note**: You don't need to create an actual email inbox - just verify the domain in Resend
+
+### RESEND_BOOKINGS_EMAIL (Recommended)
+
+**What it is:**
+The "from" email address for booking-related emails (confirmations, status updates, notifications).
+
+**Development:**
+```env
+RESEND_BOOKINGS_EMAIL="BukinPoint <bookings@resend.dev>"
+```
+
+**Production:**
+```env
+RESEND_BOOKINGS_EMAIL="BukinPoint <bookings@bukinpoint.com>"
+```
+- Must use a verified domain in Resend
+- Format: `Display Name <email@domain.com>`
+- **Note**: You don't need to create an actual email inbox - just verify the domain in Resend
+
+### RESEND_FROM_EMAIL (Fallback - Optional)
+
+**What it is:**
+Fallback "from" email address if specific email addresses are not set. Used for backward compatibility.
 
 **Development:**
 ```env
@@ -177,14 +215,14 @@ RESEND_FROM_EMAIL="BukinPoint <onboarding@resend.dev>"
 ```env
 RESEND_FROM_EMAIL="BukinPoint <noreply@yourdomain.com>"
 ```
-- Must use a verified domain in Resend
-- Format: `Display Name <email@domain.com>`
 
-**How to verify domain:**
+**How to verify domain in Resend:**
 1. Go to Resend dashboard → Domains
-2. Add your domain
-3. Add DNS records as instructed
+2. Add your domain (e.g., `bukinpoint.com`)
+3. Add the DNS records as instructed (SPF, DKIM, DMARC)
 4. Wait for verification (usually a few minutes)
+5. Once verified, you can use ANY email address on that domain (e.g., `onboarding@bukinpoint.com`, `bookings@bukinpoint.com`, `noreply@bukinpoint.com`)
+6. **Important**: You don't need to create actual email inboxes - Resend handles the sending, you just need the domain verified
 
 ---
 
