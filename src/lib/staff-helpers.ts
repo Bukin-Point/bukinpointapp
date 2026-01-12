@@ -102,6 +102,7 @@ export async function getProviderAccess(
           businessName: staffMember.provider.businessName,
           userId: staffMember.provider.userId,
           industry: staffMember.provider.industry,
+          businessImage: staffMember.provider.businessImage,
         },
       }
     }
@@ -122,6 +123,7 @@ export async function getProviderAccess(
         businessName: true,
         userId: true,
         industry: true,
+        businessImage: true,
       },
   })
 
@@ -155,7 +157,13 @@ export async function getProviderAccess(
           role: staffMember.role,
           userId: staffMember.userId,
         },
-        provider,
+        provider: {
+          id: provider.id,
+          businessName: provider.businessName,
+          industry: provider.industry,
+          userId: provider.userId,
+          businessImage: provider.businessImage,
+        },
       }
     } else {
       // Provider not found - log error for debugging

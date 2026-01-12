@@ -60,10 +60,26 @@ export function BusinessDetailsForm({ provider }: BusinessDetailsFormProps) {
     setLoading(true)
 
     try {
-      const result = await updateProvider(provider.id, {
-        ...formData,
-        businessImage: formData.businessImage.trim() !== '' ? formData.businessImage : undefined,
-      })
+      // Prepare update data - only include fields that have values
+      const updateData: any = {
+        businessName: formData.businessName,
+        industry: formData.industry,
+        phone: formData.phone,
+        email: formData.email,
+        timezone: formData.timezone,
+      }
+      
+      // Include address if provided
+      if (formData.address !== undefined) {
+        updateData.address = formData.address
+      }
+      
+      // Include businessImage if provided (don't set to undefined if empty, let it be null)
+      if (formData.businessImage !== undefined) {
+        updateData.businessImage = formData.businessImage.trim() !== '' ? formData.businessImage : null
+      }
+      
+      const result = await updateProvider(provider.id, updateData)
 
       if (result.error) {
         toast({
@@ -124,11 +140,55 @@ export function BusinessDetailsForm({ provider }: BusinessDetailsFormProps) {
             </label>
             <ImageUploader
               value={formData.businessImage || null}
-              onChange={(url) => {
+              onChange={async (url) => {
+                const imageUrl = url || ''
                 setFormData((prev) => ({
                   ...prev,
-                  businessImage: url || '',
+                  businessImage: imageUrl,
                 }))
+                
+                // Auto-save business image when uploaded or removed
+                setLoading(true)
+                try {
+                  const result = await updateProvider(provider.id, {
+                    businessImage: imageUrl || null,
+                  })
+                  
+                  if (result.error) {
+                    toast({
+                      title: 'Save Failed',
+                      description: result.error,
+                      variant: 'destructive',
+                    })
+                    // Revert the form state if save failed
+                    setFormData((prev) => ({
+                      ...prev,
+                      businessImage: provider.businessImage || '',
+                    }))
+                  } else {
+                    toast({
+                      title: imageUrl ? 'Image Saved' : 'Image Removed',
+                      description: imageUrl 
+                        ? 'Business image has been saved successfully.'
+                        : 'Business image has been removed.',
+                    })
+                    router.refresh()
+                  }
+                } catch (err) {
+                  console.error('Error auto-saving image:', err)
+                  toast({
+                    title: 'Error',
+                    description: 'Failed to save image. Please try again.',
+                    variant: 'destructive',
+                  })
+                  // Revert the form state if save failed
+                  setFormData((prev) => ({
+                    ...prev,
+                    businessImage: provider.businessImage || '',
+                  }))
+                } finally {
+                  setLoading(false)
+                }
               }}
               providerId={provider.id}
               maxSizeMB={2}

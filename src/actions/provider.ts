@@ -222,7 +222,11 @@ const updateProviderSchema = z.object({
   phone: z.string().min(1, 'Phone number is required').optional(),
   email: z.string().email('Invalid email address').optional(),
   timezone: z.string().optional(),
-  businessImage: z.union([z.string().url(), z.literal(''), z.null()]).optional(),
+  businessImage: z.union([
+    z.string().url('Invalid image URL'),
+    z.literal(''),
+    z.null(),
+  ]).optional(),
 })
 
 export async function updateProvider(
@@ -242,20 +246,38 @@ export async function updateProvider(
       return { error: 'Provider profile not found' }
     }
 
+    // Prepare update data
+    const updateData: any = {}
+    
+    if (validated.businessName) {
+      updateData.businessName = validated.businessName
+    }
+    if (validated.industry) {
+      updateData.industry = validated.industry
+    }
+    if (validated.address !== undefined) {
+      updateData.address = validated.address
+    }
+    if (validated.phone) {
+      updateData.phone = validated.phone
+    }
+    if (validated.email) {
+      updateData.email = validated.email
+    }
+    if (validated.timezone) {
+      updateData.timezone = validated.timezone
+    }
+    // Handle businessImage - explicitly set to null if empty string, or keep the URL
+    if (validated.businessImage !== undefined) {
+      updateData.businessImage = validated.businessImage && validated.businessImage.trim() !== '' 
+        ? validated.businessImage.trim() 
+        : null
+    }
+
     // Update provider
     const provider = await prisma.provider.update({
       where: { id: providerId },
-      data: {
-        ...(validated.businessName && { businessName: validated.businessName }),
-        ...(validated.industry && { industry: validated.industry }),
-        ...(validated.address !== undefined && { address: validated.address }),
-        ...(validated.phone && { phone: validated.phone }),
-        ...(validated.email && { email: validated.email }),
-        ...(validated.timezone && { timezone: validated.timezone }),
-        ...(validated.businessImage !== undefined && {
-          businessImage: validated.businessImage && validated.businessImage.trim() !== '' ? validated.businessImage : null,
-        }),
-      },
+      data: updateData,
     })
 
     revalidatePath('/settings')

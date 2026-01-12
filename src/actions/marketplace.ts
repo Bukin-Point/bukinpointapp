@@ -26,6 +26,7 @@ export interface MarketplaceProvider {
     id: string
     name: string
     description: string | null
+    image: string | null
     duration: number
     price: number
   }>

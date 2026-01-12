@@ -22,11 +22,16 @@ export function ServiceMarketplace({ initialProviders, industries }: ServiceMark
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
   // Flatten initial services for initial render
-  const initialServices = useMemo(
+  const initialServices: MarketplaceService[] = useMemo(
     () =>
       initialProviders.flatMap((provider) =>
         provider.services.map((service) => ({
-          ...service,
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          image: service.image,
+          duration: service.duration,
+          price: service.price,
           provider: {
             id: provider.id,
             businessName: provider.businessName,
