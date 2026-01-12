@@ -125,7 +125,7 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error sending staff invitation:', error)
     return { error: 'Failed to send staff invitation' }
@@ -202,7 +202,7 @@ export async function acceptInvitation(data: z.infer<typeof acceptInvitationSche
     return await createStaffFromInvitation(invitation, user.id)
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error accepting invitation:', error)
     return { error: 'Failed to accept invitation' }

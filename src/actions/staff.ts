@@ -76,7 +76,7 @@ export async function createStaff(data: z.infer<typeof createStaffSchema>) {
     return { success: true, staffMember }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error creating staff:', error)
     return { error: 'Failed to create staff member' }
@@ -122,7 +122,7 @@ export async function updateStaff(
     return { success: true }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error updating staff:', error)
     return { error: 'Failed to update staff member' }

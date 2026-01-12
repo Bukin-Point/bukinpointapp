@@ -79,7 +79,7 @@ export async function createService(data: z.infer<typeof createServiceSchema>) {
     return { success: true, service }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error creating service:', error)
     return { error: 'Failed to create service' }
@@ -88,7 +88,7 @@ export async function createService(data: z.infer<typeof createServiceSchema>) {
 
 export async function updateService(
   id: string,
-  data: z.infer<typeof updateServiceSchema>
+  data: Omit<z.infer<typeof updateServiceSchema>, 'id'>
 ) {
   try {
     const validated = updateServiceSchema.parse({ ...data, id })
@@ -138,7 +138,7 @@ export async function updateService(
     return { success: true, service }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error updating service:', error)
     return { error: 'Failed to update service' }

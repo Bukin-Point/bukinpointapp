@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Service } from '@prisma/client'
+import { SerializedService } from './service-list'
 import {
   Dialog,
   DialogContent,
@@ -18,10 +18,10 @@ import { useToast } from '@/hooks/use-toast'
 
 interface ServiceFormModalProps {
   providerId: string
-  service?: Service | null
+  service?: SerializedService | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess: (service: Service) => void
+  onSuccess: (service: SerializedService) => void
 }
 
 export function ServiceFormModal({
@@ -100,7 +100,14 @@ export function ServiceFormModal({
           variant: 'destructive',
         })
       } else if (result.service) {
-        onSuccess(result.service)
+        // Serialize service to convert Decimal price to number
+        const serializedService: SerializedService = {
+          ...result.service,
+          price: typeof result.service.price === 'object' && 'toNumber' in result.service.price
+            ? result.service.price.toNumber()
+            : Number(result.service.price),
+        }
+        onSuccess(serializedService)
         onOpenChange(false)
         toast({
           title: 'Success',

@@ -72,7 +72,7 @@ export async function createAvailability(data: z.infer<typeof availabilitySchema
     return { success: true, availability }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error creating availability:', error)
     return { error: 'Failed to create availability' }

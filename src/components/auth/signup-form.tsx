@@ -23,6 +23,7 @@ export function SignUpForm() {
   const router = useRouter()
   const { data: session } = useSession()
   const { toast } = useToast()
+  const signUpClient = signUp()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -114,7 +115,7 @@ export function SignUpForm() {
     setLoading(true)
 
     try {
-      await signUp.email(
+      await signUpClient.email(
         {
           email,
           password,
@@ -150,13 +151,13 @@ export function SignUpForm() {
               toast({
                 title: 'Email Already Registered',
                 description: `The email address "${email}" is already registered. Please sign in instead or use a different email address.`,
-                variant: 'destructive',
+                className: 'destructive',
               })
             } else {
               toast({
                 title: 'Sign Up Failed',
                 description: errorMessage || 'Failed to create account. Please try again.',
-                variant: 'destructive',
+                className: 'destructive',
               })
             }
             setLoading(false)

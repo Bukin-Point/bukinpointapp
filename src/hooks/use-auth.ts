@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { useAuth, useUser } from '@clerk/nextjs'
+import { useAuth, useUser, useSignIn as useClerkSignIn, useSignUp as useClerkSignUp } from '@clerk/nextjs'
 import { getRedirectContext } from '@/lib/auth-redirect'
 import { getRedirectPath } from '@/lib/auth-utils'
 
@@ -64,7 +64,7 @@ export function useRedirectAfterAuth(flow?: 'provider-signup' | 'staff-signup' |
 export function useSignIn() {
   const queryClient = useQueryClient()
   const router = useRouter()
-  const { signIn } = useAuth()
+  const { signIn } = useClerkSignIn()
 
   return useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
@@ -85,7 +85,7 @@ export function useSignIn() {
 export function useSignUp() {
   const queryClient = useQueryClient()
   const router = useRouter()
-  const { signUp } = useAuth()
+  const { signUp } = useClerkSignUp()
 
   return useMutation({
     mutationFn: async (data: { email: string; password: string; name: string }) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -8,7 +8,7 @@ import { acceptInvitationAfterSignup } from '@/actions/staff-invitations'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
 
-export default function StaffSignUpAcceptPage() {
+function StaffSignUpAcceptContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { userId: clerkUserId, isLoaded } = useAuth()
@@ -36,7 +36,7 @@ export default function StaffSignUpAcceptPage() {
         toast({
           title: 'Error',
           description: result.error,
-          variant: 'destructive',
+          className: 'destructive',
         })
         setIsProcessing(false)
         return
@@ -59,7 +59,7 @@ export default function StaffSignUpAcceptPage() {
       toast({
         title: 'Error',
         description: 'Failed to accept invitation. Please try again.',
-        variant: 'destructive',
+          className: 'destructive',
       })
       setIsProcessing(false)
     },
@@ -118,5 +118,24 @@ export default function StaffSignUpAcceptPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function StaffSignUpAcceptPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-surface px-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Loading...</CardTitle>
+              <CardDescription>Please wait...</CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      }
+    >
+      <StaffSignUpAcceptContent />
+    </Suspense>
   )
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { signUp, useSession } from '@/lib/auth-client'
+import { useSession, signUp } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +14,7 @@ export function CustomerSignUpForm() {
   const router = useRouter()
   const { data: session } = useSession()
   const { toast } = useToast()
+  const signUpClient = signUp()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -59,7 +60,7 @@ export function CustomerSignUpForm() {
       toast({
         title: 'Password Mismatch',
         description: 'Passwords do not match. Please try again.',
-        variant: 'destructive',
+        className: 'destructive',
       })
       return
     }
@@ -68,7 +69,7 @@ export function CustomerSignUpForm() {
       toast({
         title: 'Password Too Short',
         description: 'Password must be at least 8 characters long.',
-        variant: 'destructive',
+        className: 'destructive',
       })
       return
     }
@@ -76,7 +77,7 @@ export function CustomerSignUpForm() {
     setLoading(true)
 
     try {
-      await signUp.email(
+      await signUpClient.email(
         {
           email,
           password,
@@ -103,13 +104,13 @@ export function CustomerSignUpForm() {
               toast({
                 title: 'Email Already Registered',
                 description: `The email address '${email}' is already registered. Please sign in instead or use a different email address.`,
-                variant: 'destructive',
+                className: 'destructive',
               })
             } else {
               toast({
                 title: 'Sign Up Failed',
                 description: ctx.error.message || 'Failed to create account. Please try again.',
-                variant: 'destructive',
+                className: 'destructive',
               })
             }
             setLoading(false)
@@ -129,7 +130,7 @@ export function CustomerSignUpForm() {
       toast({
         title: 'Error',
         description: 'An unexpected error occurred. Please try again.',
-        variant: 'destructive',
+        className: 'destructive',
       })
       setLoading(false)
     }

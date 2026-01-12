@@ -31,7 +31,7 @@ export default async function DashboardPage({
   const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
 
   // Get provider access (either as provider or staff)
-  const accessContext = await getProviderAccess(session.user.id, urlProviderId)
+  const accessContext = await getProviderAccess(session.user.id, urlProviderId || undefined)
 
   if (!accessContext) {
     if (urlProviderId) {

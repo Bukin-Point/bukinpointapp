@@ -107,7 +107,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
       })
 
       // Send booking confirmation emails (non-blocking)
-      const emailPromises: Promise<void>[] = []
+      const emailPromises: Promise<unknown>[] = []
 
       // Send customer confirmation email if email is provided
       if (booking.customerEmail) {
@@ -173,7 +173,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error creating booking:', error)
     return { error: 'Failed to create booking' }

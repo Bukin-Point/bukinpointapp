@@ -1,13 +1,20 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
-import { Bell, Menu, X } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { Bell, Menu, X, User, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { AccessContext, isStaff } from '@/lib/staff-helpers-client'
 import { ProviderSelector } from './provider-selector'
 import { useClerk } from '@clerk/nextjs'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface DashboardHeaderProps {
   businessName: string
@@ -25,7 +32,8 @@ export function DashboardHeader({
   mobileMenuOpen,
 }: DashboardHeaderProps) {
   const pathname = usePathname()
-  const { user } = useClerk()
+  const router = useRouter()
+  const { user, signOut } = useClerk()
   const userIsStaff = isStaff(accessContext)
   const industry = accessContext.provider.industry
 
@@ -80,23 +88,47 @@ export function DashboardHeader({
             <span className="sr-only">Notifications</span>
           </Button>
 
-          {/* User Avatar */}
-          <div className="flex items-center gap-2">
-            <Avatar
-              src={user?.imageUrl}
-              alt={user?.firstName || 'User'}
-              fallback={getUserInitials()}
-              className="h-9 w-9"
-            />
-            <div className="hidden sm:flex flex-col items-start min-w-0">
-              <span className="text-body-sm font-medium truncate max-w-[120px]">
-                {user?.firstName || user?.emailAddresses[0]?.emailAddress || 'User'}
-              </span>
-              <Badge variant="outline" className="text-xs mt-0.5">
-                {userIsStaff ? 'Staff' : 'Provider'}
-              </Badge>
-            </div>
-          </div>
+          {/* User Avatar with Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg p-1">
+                <Avatar
+                  src={user?.imageUrl}
+                  alt={user?.firstName || 'User'}
+                  fallback={getUserInitials()}
+                  className="h-9 w-9"
+                />
+                <div className="hidden sm:flex flex-col items-start min-w-0">
+                  <span className="text-body-sm font-medium truncate max-w-[120px]">
+                    {user?.firstName || user?.emailAddresses[0]?.emailAddress || 'User'}
+                  </span>
+                  <Badge variant="outline" className="text-xs mt-0.5">
+                    {userIsStaff ? 'Staff' : 'Provider'}
+                  </Badge>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem
+                onClick={() => router.push('/profile')}
+                className="cursor-pointer"
+              >
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={async () => {
+                  await signOut()
+                  router.push('/')
+                }}
+                className="cursor-pointer text-destructive focus:text-destructive"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sign Out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

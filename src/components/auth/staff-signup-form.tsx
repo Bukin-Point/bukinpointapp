@@ -30,6 +30,7 @@ export function StaffSignUpForm({ invitation }: StaffSignUpFormProps) {
   const router = useRouter()
   const { data: session } = useSession()
   const { toast } = useToast()
+  const signUpClient = signUp()
   const [name, setName] = useState('')
   const [email, setEmail] = useState(invitation.email)
   const [password, setPassword] = useState('')
@@ -54,7 +55,7 @@ export function StaffSignUpForm({ invitation }: StaffSignUpFormProps) {
               toast({
                 title: 'Error',
                 description: result.error,
-                variant: 'destructive',
+                className: 'destructive',
               })
             } else {
               toast({
@@ -85,7 +86,7 @@ export function StaffSignUpForm({ invitation }: StaffSignUpFormProps) {
             toast({
               title: 'Error',
               description: 'Failed to accept invitation. Please try again.',
-              variant: 'destructive',
+              className: 'destructive',
             })
           })
       } else if (!signupSuccess) {
@@ -147,7 +148,7 @@ export function StaffSignUpForm({ invitation }: StaffSignUpFormProps) {
 
     try {
       // First, create the user account
-      await signUp.email(
+      await signUpClient.email(
         {
           email,
           password,
@@ -177,7 +178,7 @@ export function StaffSignUpForm({ invitation }: StaffSignUpFormProps) {
               toast({
                 title: 'Sign Up Failed',
                 description: ctx.error.message || 'Failed to create account. Please try again.',
-                variant: 'destructive',
+                className: 'destructive',
               })
               setLoading(false)
             }

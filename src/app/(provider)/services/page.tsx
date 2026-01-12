@@ -28,7 +28,7 @@ export default async function ServicesPage({
   const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
 
   // Get provider access (either as provider or staff)
-  const accessContext = await getProviderAccess(session.user.id, urlProviderId)
+  const accessContext = await getProviderAccess(session.user.id, urlProviderId || undefined)
 
   if (!accessContext) {
     if (urlProviderId) {
@@ -78,8 +78,16 @@ export default async function ServicesPage({
 
   // Convert Decimal fields to numbers for client component
   const serializedServices = services.map((service) => ({
-    ...service,
+    id: service.id,
+    providerId: service.providerId,
+    name: service.name,
+    description: service.description,
+    image: service.image,
+    duration: service.duration,
     price: Number(service.price),
+    isActive: service.isActive,
+    createdAt: service.createdAt,
+    updatedAt: service.updatedAt,
   }))
 
   return (

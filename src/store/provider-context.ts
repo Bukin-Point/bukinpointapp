@@ -20,7 +20,7 @@ interface ProviderContextState {
   loadProviders: (userId: string) => Promise<void>
   clearContext: () => void
   syncWithUrl: (providerId: string | null) => void
-  syncWithLocalStorage: () => void
+  syncWithLocalStorage: () => boolean
   persistToLocalStorage: (providerId: string) => void
 }
 
@@ -67,7 +67,7 @@ export const useProviderContext = create<ProviderContextState>((set, get) => ({
       } else if (providers.length > 1) {
         // Try to restore from localStorage or URL
         const stored = get().syncWithLocalStorage()
-        if (!stored) {
+        if (stored === false) {
           // Set first provider as default
           get().setSelectedProvider(providers[0].id)
         }

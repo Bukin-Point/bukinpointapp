@@ -69,5 +69,14 @@ async function BookingConfirmationContent({ bookingRef }: { bookingRef: string }
     )
   }
 
-  return <BookingConfirmation booking={booking} />
+  // Serialize Decimal fields to numbers for client component
+  const serializedBooking = {
+    ...booking,
+    service: {
+      ...booking.service,
+      price: Number(booking.service.price),
+    },
+  }
+
+  return <BookingConfirmation booking={serializedBooking} />
 }

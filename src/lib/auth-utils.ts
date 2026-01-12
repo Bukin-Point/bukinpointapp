@@ -42,7 +42,7 @@ export function getRedirectPath(context: RedirectContext): string {
   }
 
   // Default: no user type or needs onboarding
-  if (needsOnboarding && flow === 'provider-signup') {
+  if (needsOnboarding) {
     return '/onboarding'
   }
 

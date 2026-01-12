@@ -93,7 +93,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
         },
       })
 
-      totalRevenue = revenueResult._sum.netAmount || 0
+      totalRevenue = revenueResult._sum.netAmount ? Number(revenueResult._sum.netAmount) : 0
 
       // Get active services count
       activeServices = await prisma.service.count({

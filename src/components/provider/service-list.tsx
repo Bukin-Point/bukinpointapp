@@ -10,8 +10,11 @@ import { deleteService } from '@/actions/services'
 import { Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
+// Serialized service type with price as number instead of Decimal
+export type SerializedService = Omit<Service, 'price'> & { price: number }
+
 interface ServiceListProps {
-  services: Service[]
+  services: SerializedService[]
   providerId: string
   canEdit?: boolean
 }
@@ -19,10 +22,10 @@ interface ServiceListProps {
 export function ServiceList({ services: initialServices, providerId, canEdit = true }: ServiceListProps) {
   const { toast } = useToast()
   const [services, setServices] = useState(initialServices)
-  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [selectedService, setSelectedService] = useState<SerializedService | null>(null)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
-  const [editingService, setEditingService] = useState<Service | null>(null)
+  const [editingService, setEditingService] = useState<SerializedService | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
 
   const handleDelete = async (serviceId: string) => {
@@ -57,12 +60,12 @@ export function ServiceList({ services: initialServices, providerId, canEdit = t
     }
   }
 
-  const handleViewDetails = (service: Service) => {
+  const handleViewDetails = (service: SerializedService) => {
     setSelectedService(service)
     setIsDetailsModalOpen(true)
   }
 
-  const handleEdit = (service: Service) => {
+  const handleEdit = (service: SerializedService) => {
     setEditingService(service)
     setIsFormModalOpen(true)
   }
@@ -72,7 +75,7 @@ export function ServiceList({ services: initialServices, providerId, canEdit = t
     setIsFormModalOpen(true)
   }
 
-  const handleFormSuccess = (newService: Service) => {
+  const handleFormSuccess = (newService: SerializedService) => {
     if (editingService) {
       setServices((prev) =>
         prev.map((s) => (s.id === newService.id ? newService : s))

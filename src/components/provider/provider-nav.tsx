@@ -68,10 +68,11 @@ export function ProviderNav({
   const router = useRouter()
   const { signOut } = useClerk()
   const [internalMobileMenuOpen, setInternalMobileMenuOpen] = useState(false)
-  
+
   // Use external state if provided, otherwise use internal state
   const mobileMenuOpen = externalMobileMenuOpen !== undefined ? externalMobileMenuOpen : internalMobileMenuOpen
-  const setMobileMenuOpen = externalOnMenuToggle || (() => setInternalMobileMenuOpen(!internalMobileMenuOpen))
+  const toggleMobileMenu =
+    externalOnMenuToggle || (() => setInternalMobileMenuOpen(prev => !prev))
 
   const handleSignOut = async () => {
     await signOut()
@@ -98,7 +99,7 @@ export function ProviderNav({
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onClick={toggleMobileMenu}
           aria-label="Toggle menu"
         >
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}

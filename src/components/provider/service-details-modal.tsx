@@ -1,6 +1,6 @@
 'use client'
 
-import { Service } from '@prisma/client'
+import { SerializedService } from './service-list'
 import {
   Dialog,
   DialogContent,
@@ -15,10 +15,10 @@ import Image from 'next/image'
 import { Clock, DollarSign, FileText, CheckCircle, XCircle, Edit } from 'lucide-react'
 
 interface ServiceDetailsModalProps {
-  service: Service | null
+  service: SerializedService | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onEdit: (service: Service) => void
+  onEdit: (service: SerializedService) => void
   canEdit?: boolean
 }
 

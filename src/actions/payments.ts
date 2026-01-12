@@ -102,7 +102,7 @@ export async function processPayment(data: z.infer<typeof processPaymentSchema>)
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error processing payment:', error)
     return { error: 'Failed to process payment' }

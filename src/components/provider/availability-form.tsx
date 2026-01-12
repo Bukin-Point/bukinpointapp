@@ -68,6 +68,7 @@ export function AvailabilityForm({
         dayOfWeek: parseInt(formData.dayOfWeek),
         startTime: formData.startTime,
         endTime: formData.endTime,
+        isBlocked: false,
       })
 
       if (result.error) {

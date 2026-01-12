@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Service } from '@prisma/client'
+import { SerializedService } from './service-list'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -17,9 +17,9 @@ import {
 import Image from 'next/image'
 
 interface ServiceTableProps {
-  services: Service[]
-  onViewDetails: (service: Service) => void
-  onEdit: (service: Service) => void
+  services: SerializedService[]
+  onViewDetails: (service: SerializedService) => void
+  onEdit: (service: SerializedService) => void
   onDelete: (serviceId: string) => void
   loading?: string | null
   canEdit?: boolean

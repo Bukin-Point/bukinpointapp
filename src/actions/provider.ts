@@ -16,9 +16,18 @@ const createProviderSchema = z.object({
 })
 
 export async function createProvider(data: z.infer<typeof createProviderSchema>) {
+  // Validate input (outside try block so it's accessible in catch)
+  let validated: z.infer<typeof createProviderSchema>
   try {
-    // Validate input
-    const validated = createProviderSchema.parse(data)
+    validated = createProviderSchema.parse(data)
+  } catch (parseError) {
+    if (parseError instanceof z.ZodError) {
+      return { error: parseError.issues[0]?.message || 'Validation error' }
+    }
+    throw parseError
+  }
+
+  try {
 
     // Check if user already has a provider
     const existing = await prisma.provider.findUnique({
@@ -114,7 +123,7 @@ export async function createProvider(data: z.infer<typeof createProviderSchema>)
     return { success: true, provider, subdomain }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
 
     // Handle unique constraint violation for subdomain
@@ -251,7 +260,7 @@ export async function updateProvider(
     return { success: true, provider }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error updating provider:', error)
     return { error: 'Failed to update provider profile' }

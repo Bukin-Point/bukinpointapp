@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { StaffMember, Service } from '@prisma/client'
+import { StaffMember } from '@prisma/client'
+import { SerializedService } from './service-list'
 import {
   Dialog,
   DialogContent,
@@ -33,7 +34,7 @@ type StaffWithRelations = StaffMember & {
 
 interface StaffFormModalProps {
   providerId: string
-  services: Service[]
+  services: SerializedService[]
   staff?: StaffWithRelations | null
   open: boolean
   onOpenChange: (open: boolean) => void

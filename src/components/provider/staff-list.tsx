@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { StaffMember, Service } from '@prisma/client'
+import { StaffMember } from '@prisma/client'
+import { SerializedService } from './service-list'
 import { Button } from '@/components/ui/button'
 import { StaffTable } from '@/components/provider/staff-table'
 import { StaffDetailsModal } from '@/components/provider/staff-details-modal'
@@ -34,7 +35,7 @@ type StaffWithRelations = StaffMember & {
 
 interface StaffListProps {
   staff: StaffWithRelations[]
-  services: Service[]
+  services: SerializedService[]
   providerId: string
 }
 

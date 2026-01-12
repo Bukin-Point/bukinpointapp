@@ -29,6 +29,7 @@ export function SignInForm({ initialEmail, invitationToken }: SignInFormProps) {
   const router = useRouter()
   const { data: session } = useSession()
   const { toast } = useToast()
+  const signInClient = signIn()
   // Set default email and password in dev environment
   const isDev = typeof process !== 'undefined' && process.env.NODE_ENV === 'development'
   const [email, setEmail] = useState(isDev ? 'sholajapheth@gmail.com' : initialEmail || '')
@@ -48,7 +49,7 @@ export function SignInForm({ initialEmail, invitationToken }: SignInFormProps) {
     setLoading(true)
 
     try {
-      await signIn.email(
+      await signInClient.email(
         {
           email,
           password,
