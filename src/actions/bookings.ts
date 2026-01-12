@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
-import { BookingStatus } from '@prisma/client'
 import { sendBookingStatusUpdateEmail } from '@/lib/email'
+
+// Define BookingStatus type from Prisma namespace (available even if client not generated)
+type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW'
 
 // Statuses that should trigger customer email notifications
 const NOTIFIABLE_STATUSES: BookingStatus[] = ['CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW']
@@ -49,7 +51,7 @@ export async function updateBookingStatus(bookingId: string, status: BookingStat
         endTime: booking.endTime,
         newStatus: status,
         previousStatus: previousStatus,
-      }).catch((error) => {
+      }).catch(error => {
         console.error('Error sending booking status update email:', error)
       })
     }
