@@ -63,6 +63,7 @@ model Provider {
   phone        String
   email        String
   timezone     String         @default("Africa/Lagos")
+  businessImage String?       // Optional business image URL
   status       ProviderStatus @default(ACTIVE)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt

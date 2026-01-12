@@ -222,6 +222,7 @@ const updateProviderSchema = z.object({
   phone: z.string().min(1, 'Phone number is required').optional(),
   email: z.string().email('Invalid email address').optional(),
   timezone: z.string().optional(),
+  businessImage: z.union([z.string().url(), z.literal(''), z.null()]).optional(),
 })
 
 export async function updateProvider(
@@ -251,6 +252,9 @@ export async function updateProvider(
         ...(validated.phone && { phone: validated.phone }),
         ...(validated.email && { email: validated.email }),
         ...(validated.timezone && { timezone: validated.timezone }),
+        ...(validated.businessImage !== undefined && {
+          businessImage: validated.businessImage && validated.businessImage.trim() !== '' ? validated.businessImage : null,
+        }),
       },
     })
 

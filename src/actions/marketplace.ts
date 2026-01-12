@@ -6,6 +6,7 @@ export interface MarketplaceService {
   id: string
   name: string
   description: string | null
+  image: string | null
   duration: number
   price: number
   provider: {
@@ -48,6 +49,7 @@ export async function getMarketplaceServices(): Promise<MarketplaceProvider[]> {
             id: true,
             name: true,
             description: true,
+            image: true,
             duration: true,
             price: true,
           },
@@ -145,6 +147,7 @@ export async function searchMarketplaceServices(
             id: true,
             name: true,
             description: true,
+            image: true,
             duration: true,
             price: true,
           },

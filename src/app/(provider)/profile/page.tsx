@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation'
 import { currentUser } from '@clerk/nextjs/server'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { prisma } from '@/lib/db'
+import Image from 'next/image'
 
 export default async function ProfilePage() {
   const session = await getSession()
@@ -17,6 +19,12 @@ export default async function ProfilePage() {
   if (!clerkUser) {
     redirect('/signin')
   }
+
+  // Get provider data to check for business image
+  const provider = await prisma.provider.findUnique({
+    where: { userId: session.user.id },
+    select: { businessImage: true, businessName: true },
+  })
 
   // Get user initials for avatar fallback
   const getUserInitials = () => {
@@ -48,15 +56,30 @@ export default async function ProfilePage() {
           <div className="space-y-6">
             {/* Avatar Section */}
             <div className="flex items-center gap-4">
-              <Avatar
-                src={clerkUser.imageUrl}
-                alt={clerkUser.firstName || 'User'}
-                fallback={getUserInitials()}
-                className="h-20 w-20"
-              />
+              {provider?.businessImage ? (
+                <div className="relative h-20 w-20 rounded-full overflow-hidden border-2 border-border">
+                  <Image
+                    src={provider.businessImage}
+                    alt={provider.businessName || 'Business'}
+                    fill
+                    className="object-cover"
+                    sizes="80px"
+                  />
+                </div>
+              ) : (
+                <Avatar
+                  src={clerkUser.imageUrl}
+                  alt={clerkUser.firstName || 'User'}
+                  fallback={getUserInitials()}
+                  className="h-20 w-20"
+                >
+                  <AvatarImage src={clerkUser.imageUrl} />
+                  <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                </Avatar>
+              )}
               <div>
                 <h3 className="text-body-lg font-semibold">
-                  {clerkUser.fullName || clerkUser.firstName || 'User'}
+                  {provider?.businessName || clerkUser.fullName || clerkUser.firstName || 'User'}
                 </h3>
                 <p className="text-body-sm text-text-secondary">
                   {clerkUser.emailAddresses[0]?.emailAddress || session.user.email}

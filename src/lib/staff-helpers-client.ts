@@ -13,6 +13,7 @@ export interface StaffContext {
     businessName: string
     industry: string
     userId: string
+    businessImage: string | null
   }
 }
 
@@ -22,6 +23,7 @@ export interface ProviderContext {
     businessName: string
     industry: string
     userId: string
+    businessImage: string | null
   }
 }
 

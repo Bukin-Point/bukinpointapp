@@ -1,10 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Clock, MapPin } from 'lucide-react'
 import type { MarketplaceService } from '@/actions/marketplace'
+
+const DEFAULT_IMAGE = '/bukinpoint.jpeg'
 
 interface ServiceCardProps {
   service: MarketplaceService
@@ -12,9 +15,19 @@ interface ServiceCardProps {
 
 export function ServiceCard({ service }: ServiceCardProps) {
   const bookingUrl = `/book/${service.provider.id}?serviceId=${service.id}`
+  const serviceImage = service.image || DEFAULT_IMAGE
 
   return (
     <Card className="group hover:shadow-lg transition-shadow duration-200 h-full flex flex-col">
+      <div className="relative w-full h-48 overflow-hidden rounded-t-lg">
+        <Image
+          src={serviceImage}
+          alt={service.name}
+          fill
+          className="object-cover group-hover:scale-105 transition-transform duration-200"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        />
+      </div>
       <CardHeader className="flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">

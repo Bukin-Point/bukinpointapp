@@ -52,6 +52,7 @@ export async function getProviderAccess(
         businessName: true,
         industry: true,
         userId: true,
+        businessImage: true,
       },
     })
 
@@ -78,6 +79,7 @@ export async function getProviderAccess(
             industry: true,
             userId: true,
             status: true,
+            businessImage: true,
           },
         },
       },
@@ -141,6 +143,7 @@ export async function getProviderAccess(
         businessName: true,
         industry: true,
         userId: true,
+        businessImage: true,
       },
     })
 

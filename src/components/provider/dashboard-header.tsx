@@ -1,10 +1,11 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Bell, Menu, X, User, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { AccessContext, isStaff } from '@/lib/staff-helpers-client'
 import { ProviderSelector } from './provider-selector'
 import { useClerk } from '@clerk/nextjs'
@@ -92,12 +93,27 @@ export function DashboardHeader({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg p-1">
-                <Avatar
-                  src={user?.imageUrl}
-                  alt={user?.firstName || 'User'}
-                  fallback={getUserInitials()}
-                  className="h-9 w-9"
-                />
+                {accessContext.provider.businessImage ? (
+                  <div className="relative h-9 w-9 rounded-full overflow-hidden border-2 border-border">
+                    <Image
+                      src={accessContext.provider.businessImage}
+                      alt={accessContext.provider.businessName || 'Business'}
+                      fill
+                      className="object-cover"
+                      sizes="36px"
+                    />
+                  </div>
+                ) : (
+                  <Avatar
+                    src={user?.imageUrl}
+                    alt={user?.firstName || 'User'}
+                    fallback={getUserInitials()}
+                    className="h-9 w-9"
+                  >
+                    <AvatarImage src={user?.imageUrl} />
+                    <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                  </Avatar>
+                )}
                 <div className="hidden sm:flex flex-col items-start min-w-0">
                   <span className="text-body-sm font-medium truncate max-w-[120px]">
                     {user?.firstName || user?.emailAddresses[0]?.emailAddress || 'User'}

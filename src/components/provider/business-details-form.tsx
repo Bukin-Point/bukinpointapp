@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ImageUploader } from '@/components/ui/image-uploader'
 import { updateProvider } from '@/actions/provider'
 import { useToast } from '@/hooks/use-toast'
 import { industries, timezones } from '@/lib/constants'
@@ -26,8 +27,22 @@ export function BusinessDetailsForm({ provider }: BusinessDetailsFormProps) {
     phone: provider.phone,
     email: provider.email,
     timezone: provider.timezone,
+    businessImage: provider.businessImage || '',
   })
   const [loading, setLoading] = useState(false)
+
+  // Update form data when provider prop changes (after refresh)
+  useEffect(() => {
+    setFormData({
+      businessName: provider.businessName,
+      industry: provider.industry,
+      address: provider.address || '',
+      phone: provider.phone,
+      email: provider.email,
+      timezone: provider.timezone,
+      businessImage: provider.businessImage || '',
+    })
+  }, [provider])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,7 +60,10 @@ export function BusinessDetailsForm({ provider }: BusinessDetailsFormProps) {
     setLoading(true)
 
     try {
-      const result = await updateProvider(provider.id, formData)
+      const result = await updateProvider(provider.id, {
+        ...formData,
+        businessImage: formData.businessImage.trim() !== '' ? formData.businessImage : undefined,
+      })
 
       if (result.error) {
         toast({
@@ -100,6 +118,26 @@ export function BusinessDetailsForm({ provider }: BusinessDetailsFormProps) {
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-body-sm font-medium">
+              Business Image (Optional)
+            </label>
+            <ImageUploader
+              value={formData.businessImage || null}
+              onChange={(url) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  businessImage: url || '',
+                }))
+              }}
+              providerId={provider.id}
+              maxSizeMB={2}
+              disabled={loading}
+            />
+            <p className="text-caption text-text-secondary">
+              Upload a business image. This will be displayed in place of your avatar when available.
+            </p>
+          </div>
           <div className="space-y-2">
             <label htmlFor="businessName" className="text-body-sm font-medium">
               Business Name *
