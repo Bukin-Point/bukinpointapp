@@ -2,7 +2,12 @@
 
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth-helpers-clerk'
-import { getRedirectContext } from '@/lib/auth-redirect'
+import {
+  getRedirectContext,
+  getSecureSubdomainRedirect,
+  getProviderSubdomain,
+  getStaffProviderSubdomain,
+} from '@/lib/auth-redirect'
 // getRedirectPath is client-side only, so we'll duplicate the logic here
 function getRedirectPath(context: {
   userType?: string | null
@@ -76,90 +81,49 @@ export async function getPostSigninRedirectUrl(): Promise<string | null> {
   try {
     // Get session from cookies/headers (server-side)
     const session = await getSession()
-
+    
     if (!session?.user?.id) {
+      // #region agent log
+      // Server action - write to log file directly
+      const fs = await import('fs/promises')
+      const logEntry = JSON.stringify({
+        location: 'actions/auth.ts:58',
+        message: 'No session in getPostSigninRedirectUrl',
+        data: {},
+        timestamp: Date.now(),
+        sessionId: 'debug-session',
+        runId: 'run1',
+        hypothesisId: 'C',
+      }) + '\n'
+      fs.appendFile('/Users/apple/Documents/apps/web/bukinpoint/.cursor/debug.log', logEntry).catch(() => {})
+      // #endregion
       return null
     }
 
     const userId = session.user.id
 
-    // IMPORTANT: Check for pending invitations FIRST (before checking onboarding status)
-    // This ensures new staff members have their invitations accepted and onboardingCompleted set to true
-    // before we check if they need onboarding
-    let invitationCheckResult: any = null
-    let hasPendingInvitations = false
+    // Check for pending invitations (with timeout)
     try {
-      // Quick check if there are any pending invitations
-      const pendingInvitation = await prisma.staffInvitation.findFirst({
-        where: {
-          email: session.user.email,
-          expiresAt: { gt: new Date() },
-          acceptedAt: null,
-        },
-        select: { id: true },
-      })
-      hasPendingInvitations = !!pendingInvitation
-
-      if (hasPendingInvitations) {
-        // Accept all pending invitations (this will create staff members and set onboardingCompleted = true)
-        const { checkAndAcceptPendingInvitations } = await import('@/actions/staff-invitations')
-        invitationCheckResult = await Promise.race([
-          checkAndAcceptPendingInvitations(userId, session.user.email || ''),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000)),
-        ])
-
-        // Wait a bit for staff member to be created and onboardingCompleted to be set
-        await new Promise(resolve => setTimeout(resolve, 1000))
-      }
+      const { checkAndAcceptPendingInvitations } = await import('@/actions/staff-invitations')
+      await Promise.race([
+        checkAndAcceptPendingInvitations(userId, session.user.email || ''),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000)),
+      ])
     } catch (err) {
       console.warn('Invitation check timed out or failed, continuing with redirect:', err)
     }
 
-    // NOW check onboarding status (after invitations have been processed)
-    let onboardingCompleted = false
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, onboardingCompleted: true },
-      })
-      onboardingCompleted = user?.onboardingCompleted ?? false
-    } catch (error) {
-      // Fallback: If onboardingCompleted field doesn't exist yet (during migration), continue with legacy checks
-      console.warn('onboardingCompleted field not available, using legacy checks:', error)
-    }
-
-    // If user has completed onboarding, skip onboarding check entirely
-    if (onboardingCompleted) {
-      // User has completed onboarding (staff or provider) - continue with normal redirect
-    } else {
-      // User hasn't completed onboarding - check if they need it
-      // Check if user has provider record
-      const hasProviderRecord = await prisma.provider.findUnique({
-        where: { userId },
-        select: { id: true },
-      })
-
-      // If user doesn't have provider record, they need onboarding
-      if (!hasProviderRecord) {
-        // Check if they're staff (staff don't need onboarding)
-        const isStaff = await prisma.staffMember.findFirst({
-          where: { userId },
-          select: { id: true, providerId: true },
-        })
-        
-        if (!isStaff) {
-          // New user without provider or staff - needs onboarding
-          return '/onboarding?flow=provider-signup'
-        }
-      }
-    }
+    // Wait a bit for staff member to be created if needed
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     // Get redirect context
     let context
     try {
       context = await Promise.race([
         getRedirectContext(userId, 'signin'),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000)),
+        new Promise<any>((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        ),
       ])
     } catch (err) {
       console.error('Error getting redirect context, using fallback:', err)
@@ -171,14 +135,43 @@ export async function getPostSigninRedirectUrl(): Promise<string | null> {
     let path = '/dashboard'
     if (context.flow === 'provider-signup') {
       path = '/onboarding'
-      return '/onboarding?flow=provider-signup'
     } else if (context.userType === 'customer') {
       // Customers don't have subdomains
       return getRedirectPath(context)
     }
 
-    // Providers and staff work on root domain - simple redirect to dashboard
-    return path
+    // Get subdomain based on user type
+    let subdomain: string | null = null
+    if (context.userType === 'provider') {
+      subdomain = await getProviderSubdomain(userId)
+    } else if (context.userType === 'staff') {
+      subdomain = await getStaffProviderSubdomain(userId)
+    }
+
+    // Get secure redirect URL (server-side validated)
+    const redirectUrl = await getSecureSubdomainRedirect(userId, subdomain, path)
+
+    // #region agent log
+    // Server action - write to log file directly
+    const fs = await import('fs/promises')
+    const logEntry = JSON.stringify({
+      location: 'actions/auth.ts:115',
+      message: 'Post-signin redirect URL obtained',
+      data: {
+        userId,
+        userType: context.userType,
+        subdomain,
+        redirectUrl,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'C',
+    }) + '\n'
+    fs.appendFile('/Users/apple/Documents/apps/web/bukinpoint/.cursor/debug.log', logEntry).catch(() => {})
+    // #endregion
+
+    return redirectUrl
   } catch (error) {
     console.error('Error in getPostSigninRedirectUrl:', error)
     // Fallback to main domain dashboard

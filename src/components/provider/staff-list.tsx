@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { StaffMember, Service } from '@prisma/client'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { StaffTable } from '@/components/provider/staff-table'
+import { StaffDetailsModal } from '@/components/provider/staff-details-modal'
+import { StaffFormModal } from '@/components/provider/staff-form-modal'
 import {
   Dialog,
   DialogContent,
@@ -13,9 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { StaffForm } from '@/components/provider/staff-form'
 import { deleteStaff, toggleStaffStatus } from '@/actions/staff'
-import { Plus, Trash2, UserX, UserCheck, Edit } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 type StaffWithRelations = StaffMember & {
@@ -36,24 +36,15 @@ interface StaffListProps {
   staff: StaffWithRelations[]
   services: Service[]
   providerId: string
-  clerkMembers?: Array<{
-    id: string
-    role: string
-    publicUserData: {
-      userId: string
-      firstName?: string | null
-      lastName?: string | null
-      imageUrl?: string
-      identifier: string
-    }
-  }>
 }
 
-export function StaffList({ staff: initialStaff, services, providerId, clerkMembers }: StaffListProps) {
+export function StaffList({ staff: initialStaff, services, providerId }: StaffListProps) {
   const { toast } = useToast()
   const [staff, setStaff] = useState(initialStaff)
+  const [selectedStaff, setSelectedStaff] = useState<StaffWithRelations | null>(null)
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [editingStaff, setEditingStaff] = useState<StaffWithRelations | null>(null)
-  const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false)
@@ -75,8 +66,8 @@ export function StaffList({ staff: initialStaff, services, providerId, clerkMemb
       if (result.success) {
         setStaff((prev) => prev.filter((s) => s.id !== staffToAction.id))
         toast({
-          title: 'Staff Member Removed',
-          description: `${staffToAction.user.name || staffToAction.user.email} has been removed from your team.`,
+          title: 'Success',
+          description: 'Staff member removed successfully',
         })
       } else {
         toast({
@@ -120,8 +111,8 @@ export function StaffList({ staff: initialStaff, services, providerId, clerkMemb
           prev.map((s) => (s.id === staffToAction.id ? { ...s, isActive: newStatus } : s))
         )
         toast({
-          title: newStatus ? 'Staff Member Activated' : 'Staff Member Deactivated',
-          description: `${staffToAction.user.name || staffToAction.user.email} has been ${newStatus ? 'activated' : 'deactivated'}.`,
+          title: 'Success',
+          description: `Staff member ${newStatus ? 'activated' : 'deactivated'} successfully`,
         })
       } else {
         toast({
@@ -142,127 +133,60 @@ export function StaffList({ staff: initialStaff, services, providerId, clerkMemb
     }
   }
 
+  const handleViewDetails = (member: StaffWithRelations) => {
+    setSelectedStaff(member)
+    setIsDetailsModalOpen(true)
+  }
+
+  const handleEdit = (member: StaffWithRelations) => {
+    setEditingStaff(member)
+    setIsFormModalOpen(true)
+  }
+
+  const handleCreate = () => {
+    setEditingStaff(null)
+    setIsFormModalOpen(true)
+  }
+
+  const handleFormSuccess = () => {
+    // Reload to get updated data
+    window.location.reload()
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={() => {
-          setEditingStaff(null)
-          setShowForm(true)
-        }}>
+        <Button onClick={handleCreate}>
           <Plus className="mr-2 h-4 w-4" />
           Add Staff Member
         </Button>
       </div>
 
-      {showForm && (
-        <StaffForm
-          providerId={providerId}
-          services={services}
-          staff={editingStaff || undefined}
-          onSuccess={() => {
-            setShowForm(false)
-            setEditingStaff(null)
-            window.location.reload() // Refresh to get updated data
-          }}
-          onCancel={() => {
-            setShowForm(false)
-            setEditingStaff(null)
-          }}
-        />
-      )}
+      <StaffTable
+        staff={staff}
+        onViewDetails={handleViewDetails}
+        onEdit={handleEdit}
+        onDelete={handleDeleteClick}
+        onToggleStatus={handleToggleStatusClick}
+        loading={loading}
+      />
 
-      {staff.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-body-sm text-text-secondary">
-              No staff members yet. Add your first team member to get started.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {staff.map((member) => (
-            <Card key={member.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-h4">
-                      {member.user.name || member.user.email}
-                    </CardTitle>
-                    <CardDescription>{member.user.email}</CardDescription>
-                  </div>
-                  <Badge variant={member.isActive ? 'default' : 'secondary'}>
-                    {member.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-body-sm">
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Role:</span>
-                    <span className="font-medium">{member.role}</span>
-                  </div>
-                  <div>
-                    <span className="text-text-secondary">Assigned Services:</span>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {member.services.length > 0 ? (
-                        member.services.map(({ service }) => (
-                          <Badge key={service.id} variant="outline" className="text-xs">
-                            {service.name}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-caption">None</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setEditingStaff(member)
-                      setShowForm(true)
-                    }}
-                    disabled={loading === member.id}
-                  >
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleToggleStatusClick(member)}
-                    disabled={loading === member.id}
-                  >
-                    {member.isActive ? (
-                      <>
-                        <UserX className="mr-2 h-4 w-4" />
-                        Deactivate
-                      </>
-                    ) : (
-                      <>
-                        <UserCheck className="mr-2 h-4 w-4" />
-                        Activate
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeleteClick(member)}
-                    disabled={loading === member.id}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {loading === member.id ? 'Removing...' : 'Remove'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      <StaffDetailsModal
+        staff={selectedStaff}
+        open={isDetailsModalOpen}
+        onOpenChange={setIsDetailsModalOpen}
+        onEdit={handleEdit}
+        canEdit={true}
+      />
+
+      <StaffFormModal
+        providerId={providerId}
+        services={services}
+        staff={editingStaff}
+        open={isFormModalOpen}
+        onOpenChange={setIsFormModalOpen}
+        onSuccess={handleFormSuccess}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

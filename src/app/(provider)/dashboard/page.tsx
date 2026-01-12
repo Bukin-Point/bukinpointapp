@@ -1,24 +1,47 @@
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { getProviderAccess, canViewAllBookings, canManageStaff, isStaff } from '@/lib/staff-helpers'
 import { getDashboardStats } from '@/actions/dashboard'
 import { StatsCard } from '@/components/provider/stats-card'
 import { RecentBookings } from '@/components/provider/recent-bookings'
 import { UpcomingAppointments } from '@/components/provider/upcoming-appointments'
-import { Calendar, DollarSign, Briefcase, Users, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-export default async function DashboardPage() {
+import { Calendar, DollarSign, Briefcase, Users } from 'lucide-react'
+import { sanitizeProviderId } from '@/lib/auth-utils'
+import { ProviderContextError } from '@/components/provider/provider-context-error'
+import { QuickActionLinks } from '@/components/provider/quick-action-links'
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ providerId?: string }>
+}) {
   const session = await getSession()
 
   if (!session) {
     redirect('/signin')
   }
 
+  // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
+  const headersList = await headers()
+  const subdomainProviderId = headersList.get('x-provider-id')
+  
+  const params = await searchParams
+  // Prioritize subdomain provider ID over URL parameter for security
+  const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
+
   // Get provider access (either as provider or staff)
-  const accessContext = await getProviderAccess(session.user.id)
+  const accessContext = await getProviderAccess(session.user.id, urlProviderId)
 
   if (!accessContext) {
+    if (urlProviderId) {
+      return (
+        <ProviderContextError
+          userId={session.user.id}
+          errorMessage="You don't have access to this provider or the provider doesn't exist."
+        />
+      )
+    }
     redirect('/onboarding')
   }
 
@@ -28,10 +51,7 @@ export default async function DashboardPage() {
   const userIsStaff = isStaff(accessContext)
 
   // Fetch dashboard stats (will filter by staff if needed)
-  const dashboardData = await getDashboardStats(
-    providerId,
-    canViewAll ? undefined : session.user.id
-  )
+  const dashboardData = await getDashboardStats(providerId, canViewAll ? undefined : session.user.id)
 
   if (!dashboardData.success) {
     // Handle error state - for now just show empty state
@@ -58,36 +78,13 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-h1 mb-2">Dashboard</h1>
         <p className="text-body-sm text-text-secondary">
-          Welcome back{userIsStaff ? '' : `, ${accessContext.provider.businessName}`}! Here's what's
-          happening with your business.
+          Welcome back{userIsStaff ? '' : `, ${accessContext.provider.businessName}`}! Here's what's happening with your business.
         </p>
       </div>
 
       {/* Quick Actions */}
       {canManage && (
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" className="flex-1 sm:flex-none">
-            <Link href="/services">
-              <Plus className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Add Service</span>
-              <span className="sm:hidden">Service</span>
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="flex-1 sm:flex-none">
-            <Link href="/staff">
-              <Users className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Add Staff</span>
-              <span className="sm:hidden">Staff</span>
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline" className="flex-1 sm:flex-none">
-            <Link href="/availability">
-              <Calendar className="mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">Set Availability</span>
-              <span className="sm:hidden">Availability</span>
-            </Link>
-          </Button>
-        </div>
+        <QuickActionLinks providerId={providerId} />
       )}
 
       {/* Stats Cards */}
@@ -99,9 +96,21 @@ export default async function DashboardPage() {
         />
         {canManage && (
           <>
-            <StatsCard title="Total Revenue" value={formattedRevenue} icon={DollarSign} />
-            <StatsCard title="Active Services" value={stats.activeServices} icon={Briefcase} />
-            <StatsCard title="Active Staff" value={stats.activeStaff} icon={Users} />
+            <StatsCard
+              title="Total Revenue"
+              value={formattedRevenue}
+              icon={DollarSign}
+            />
+            <StatsCard
+              title="Active Services"
+              value={stats.activeServices}
+              icon={Briefcase}
+            />
+            <StatsCard
+              title="Active Staff"
+              value={stats.activeStaff}
+              icon={Users}
+            />
           </>
         )}
       </div>

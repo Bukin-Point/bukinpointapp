@@ -22,7 +22,7 @@ export function CustomerNav({ userName }: { userName: string }) {
 
   const handleSignOut = async () => {
     await signOut()
-    router.push('/auth')
+    router.push('/signin')
   }
 
   return (

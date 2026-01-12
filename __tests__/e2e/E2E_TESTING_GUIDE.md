@@ -23,10 +23,10 @@ npx tsx prisma/seed.ts
 ```
 
 This will create:
-- Test users (providers and staff)
-- Providers with subdomains
-- Services
-- Staff members with proper role assignments
+- 4 test users (2 providers, 2 staff)
+- 2 providers with subdomains
+- 6 services (3 per provider)
+- 3 staff members with proper role assignments
 - All relationships and assignments
 
 ### Manual Setup
@@ -56,20 +56,42 @@ If you prefer to set up test data manually:
   - Email: `provider2@test.com`
   - Timezone: `Africa/Lagos`
 
-#### 3. Create Staff Member
+#### 3. Create Staff Member (Single Provider)
 
 - Sign in as Provider 1
 - Go to `/staff`
 - Invite staff:
-  - Email: `staff1@test.com`
+  - Email: `staff-single@test.com`
   - Role: `STAFF`
   - Assign some services
 - Copy invitation link
 - Sign out
 - Open invitation link in new browser/incognito
-- Sign up with: `staff1@test.com` / `Test1234!`
+- Sign up with: `staff-single@test.com` / `Test1234!`
 - Complete signup
-- Should redirect to `/dashboard` (staff don't need onboarding)
+
+#### 4. Create Staff Member (Multiple Providers)
+
+- Sign in as Provider 1
+- Go to `/staff`
+- Invite staff:
+  - Email: `staff-multi@test.com`
+  - Role: `OWNER`
+  - Assign some services
+- Copy invitation link (don't use it yet)
+- Sign out
+- Sign in as Provider 2
+- Go to `/staff`
+- Invite staff:
+  - Email: `staff-multi@test.com`
+  - Role: `STAFF`
+  - Assign some services
+- Copy invitation link
+- Sign out
+- Open invitation link in new browser/incognito
+- Sign up with: `staff-multi@test.com` / `Test1234!`
+- Complete signup
+- Sign in again - should see both providers
 
 ### Verify Test Data
 
@@ -85,15 +107,25 @@ After setup, verify:
    SELECT * FROM "Provider" WHERE "email" = 'provider2@test.com';
    ```
 
-3. **Staff member has one provider:**
+3. **Staff Single has one provider:**
    ```sql
    SELECT sm.*, p."businessName" 
    FROM "StaffMember" sm
    JOIN "Provider" p ON sm."providerId" = p.id
    JOIN "user" u ON sm."userId" = u.id
-   WHERE u.email = 'staff1@test.com';
+   WHERE u.email = 'staff-single@test.com';
    ```
-   Should return 1 row (single provider constraint enforced).
+   Should return 1 row.
+
+4. **Staff Multi has two providers:**
+   ```sql
+   SELECT sm.*, p."businessName", sm.role
+   FROM "StaffMember" sm
+   JOIN "Provider" p ON sm."providerId" = p.id
+   JOIN "user" u ON sm."userId" = u.id
+   WHERE u.email = 'staff-multi@test.com';
+   ```
+   Should return 2 rows (one OWNER, one STAFF).
 
 ### Clear All Test Data
 
@@ -113,12 +145,11 @@ npx tsx prisma/clear.ts
 2. Database is set up and accessible
 3. Redis is running (if needed)
 4. Test data is created (see above)
-5. Clerk authentication is configured with test keys
 
 ### Run All Tests
 
 ```bash
-npx playwright test __tests__/e2e/
+npx playwright test __tests__/e2e/provider-context.test.ts
 ```
 
 ### Run Specific Test Suite
@@ -149,18 +180,20 @@ npx playwright show-report
 
 The automated test suite covers:
 
-1. ✅ Single provider per user (enforced constraint)
-2. ✅ No provider selector (removed from UI)
-3. ✅ Simple URL structure (no providerId parameters)
-4. ✅ Access validation
-5. ✅ All pages work without providerId
-6. ✅ RBAC permissions
-7. ✅ Service filtering for staff
-8. ✅ Booking filtering for staff
-9. ✅ Navigation links
-10. ✅ Error handling
-11. ✅ Onboarding flow
-12. ✅ Staff invitation acceptance
+1. ✅ Single provider staff (no selector)
+2. ✅ Multiple provider staff (selector shown)
+3. ✅ Provider switching functionality
+4. ✅ URL parameter persistence
+5. ✅ LocalStorage persistence
+6. ✅ Access validation
+7. ✅ Access revocation handling
+8. ✅ All pages respect context
+9. ✅ RBAC permissions per provider
+10. ✅ Service filtering per provider
+11. ✅ Booking filtering per provider
+12. ✅ Navigation link preservation
+13. ✅ Error handling
+14. ✅ Edge cases
 
 ---
 
@@ -171,368 +204,425 @@ The automated test suite covers:
 1. Database is set up with test data
 2. Development server is running (`npm run dev`)
 3. Test users are created (see test data setup above)
-4. Clerk authentication is configured
 
 ### Test Credentials
 
 - **Provider 1**: `provider1@test.com` / `Test1234!`
 - **Provider 2**: `provider2@test.com` / `Test1234!`
-- **Staff 1**: `staff1@test.com` / `Test1234!`
+- **Staff Single**: `staff-single@test.com` / `Test1234!`
+- **Staff Multi**: `staff-multi@test.com` / `Test1234!`
 
 ---
 
-### 1. Provider Signup and Onboarding
+### 1. Staff with Single Provider
 
-**Objective**: Verify that new providers can sign up and complete onboarding.
+**Objective**: Verify that staff with only one provider don't see the selector.
 
 **Steps**:
-1. Navigate to `/signup`
-2. Fill in signup form:
-   - Name: `Test Provider`
-   - Email: `newprovider@test.com`
-   - Password: `Test1234!`
-   - Confirm Password: `Test1234!`
-3. Submit form
-4. Complete CAPTCHA if shown
-5. Wait for redirect
+1. Sign in as `staff-single@test.com`
+2. Navigate to `/dashboard`
 
 **Expected Results**:
-- [ ] Redirects to `/onboarding?flow=provider-signup`
-- [ ] Onboarding form is displayed
-- [ ] Can fill in business details
-- [ ] Can submit onboarding form
-- [ ] Redirects to `/dashboard` after submission
-- [ ] `onboardingCompleted` field is set to `true` in database
-- [ ] Provider record is created
-- [ ] Wallet is initialized with balance 0
+- [ ] No provider selector dropdown is visible
+- [ ] Business name "Business One" is displayed in sidebar
+- [ ] All pages work normally without `providerId` in URL
+- [ ] Navigation works as before
+
+**Test Pages**:
+- [ ] Dashboard (`/dashboard`)
+- [ ] Services (`/services`)
+- [ ] Bookings (`/bookings`)
+- [ ] Availability (`/availability`)
 
 ---
 
-### 2. Staff Invitation and Acceptance
+### 2. Staff with Multiple Providers
 
-**Objective**: Verify that providers can invite staff and staff can accept invitations.
-
-**Steps - Provider Side**:
-1. Sign in as Provider 1
-2. Navigate to `/staff`
-3. Click "Invite Staff" button
-4. Fill invitation form:
-   - Email: `newstaff@test.com`
-   - Role: `STAFF`
-   - Select services (optional)
-5. Submit form
-
-**Expected Results**:
-- [x] Invitation is created
-- [x] Email is sent (if email service configured)
-- [ ] Invitation link is displayed
-- [ ] Cannot invite email that belongs to a provider
-- [ ] Cannot invite email that is already staff for another provider
-- [ ] Cannot invite same email twice (pending invitation check)
-
-**Steps - Staff Side**:
-1. Open invitation link in new browser/incognito
-2. Should see staff signup page at `/signup/staff?token=...`
-3. Email should be pre-filled
-4. Fill signup form:
-   - Name: `Test Staff`
-   - Email: (pre-filled, should match invitation)
-   - Password: `Test1234!`
-   - Confirm Password: `Test1234!`
-5. Submit form
-
-**Expected Results**:
-- [ ] Redirects to `/signup/staff/accept?token=...`
-- [ ] Invitation is accepted automatically
-- [ ] StaffMember record is created
-- [ ] `onboardingCompleted` is set to `true` (staff don't need onboarding)
-- [ ] Redirects to `/dashboard`
-- [ ] Can access provider dashboard
-- [ ] Cannot accept another invitation (single provider constraint)
-
----
-
-### 3. Staff Signin (Existing User)
-
-**Objective**: Verify that existing staff members can sign in and access dashboard.
+**Objective**: Verify that staff with multiple providers can see and use the selector.
 
 **Steps**:
-1. Navigate to `/signin`
-2. Enter credentials:
-   - Email: `staff1@test.com`
-   - Password: `Test1234!`
-3. Submit form
+1. Sign in as `staff-multi@test.com`
+2. Navigate to `/dashboard`
 
 **Expected Results**:
-- [ ] Redirects to `/auth/redirect`
-- [ ] System checks for pending invitations
-- [ ] System checks `onboardingCompleted` status
-- [ ] Redirects to `/dashboard` (staff don't need onboarding)
-- [ ] Dashboard loads correctly
-- [ ] Business name is displayed in sidebar
-- [ ] No provider selector is shown (single provider)
+- [ ] Provider selector dropdown IS visible in sidebar header
+- [ ] Both "Business One" and "Business Two" are listed in dropdown
+- [ ] Current provider is selected by default
+- [ ] Can click selector to see all providers
+
+**Test Switching**:
+1. Click provider selector
+2. Select "Business Two"
+3. Wait for page to update
+
+**Expected Results**:
+- [ ] URL updates to include `?providerId=<business-two-id>`
+- [ ] Business name changes to "Business Two"
+- [ ] Page content updates to show Business Two's data
+- [ ] Selector shows "Business Two" as selected
 
 ---
 
-### 4. Provider Signin
+### 3. URL Parameter Persistence
 
-**Objective**: Verify that providers can sign in and access dashboard.
+**Objective**: Verify that `providerId` is preserved in URL when navigating.
 
 **Steps**:
-1. Navigate to `/signin`
-2. Enter credentials:
-   - Email: `provider1@test.com`
-   - Password: `Test1234!`
-3. Submit form
+1. Sign in as `staff-multi@test.com`
+2. Select a provider (e.g., Business Two)
+3. Note the `providerId` in URL
+4. Navigate to different pages:
+   - Dashboard → Services → Bookings → Availability
 
 **Expected Results**:
-- [ ] Redirects to `/auth/redirect`
-- [ ] System checks `onboardingCompleted` status
-- [ ] If onboarding not completed, redirects to `/onboarding`
-- [ ] If onboarding completed, redirects to `/dashboard`
-- [ ] Dashboard loads correctly
-- [ ] Business name is displayed in sidebar
-- [ ] All navigation links are visible
+- [ ] `providerId` parameter is present in all URLs
+- [ ] Parameter value remains consistent across navigation
+- [ ] Page content matches selected provider
+- [ ] Direct URL access with `providerId` works (e.g., `/services?providerId=xxx`)
+
+**Test Direct URL Access**:
+1. Copy a valid `providerId` from URL
+2. Open new tab
+3. Navigate to `/dashboard?providerId=<copied-id>`
+
+**Expected Results**:
+- [ ] Page loads with correct provider context
+- [ ] Selector shows correct provider selected
+- [ ] Data matches selected provider
 
 ---
 
-### 5. Single Provider Constraint
+### 4. LocalStorage Persistence
 
-**Objective**: Verify that users can only be associated with one provider.
-
-**Test Case 1 - Staff Cannot Accept Second Invitation**:
-1. Sign in as Provider 1
-2. Invite `staff1@test.com` (already staff for Provider 1)
-3. Sign out
-4. Sign in as Provider 2
-5. Try to invite `staff1@test.com`
-
-**Expected Results**:
-- [ ] Error message: "This user is already a staff member for another provider"
-- [ ] Invitation is not created
-
-**Test Case 2 - Provider Cannot Become Staff**:
-1. Sign in as Provider 1
-2. Sign out
-3. Sign in as Provider 2
-4. Try to invite `provider1@test.com`
-
-**Expected Results**:
-- [ ] Error message: "This email address belongs to a business owner"
-- [ ] Invitation is not created
-
-**Test Case 3 - Staff Cannot Create Provider**:
-1. Sign in as `staff1@test.com`
-2. Try to access `/onboarding` directly
-3. Try to create a provider profile
-
-**Expected Results**:
-- [ ] Redirects to `/dashboard` (staff don't need onboarding)
-- [ ] Cannot create provider profile (already staff)
-
----
-
-### 6. URL Structure (No providerId)
-
-**Objective**: Verify that URLs are simple and don't contain providerId parameters.
+**Objective**: Verify that selected provider persists across page refreshes.
 
 **Steps**:
-1. Sign in as any user (provider or staff)
-2. Navigate through different pages:
-   - Dashboard → Services → Bookings → Availability → Staff → Wallet → Settings
+1. Sign in as `staff-multi@test.com`
+2. Select a provider (e.g., Business Two)
+3. Note the `providerId` in URL
+4. Refresh the page (F5 or Cmd+R)
 
 **Expected Results**:
-- [ ] URLs are simple: `/dashboard`, `/services`, `/bookings`, etc.
-- [ ] No `providerId` parameter in URLs
-- [ ] Navigation works correctly
-- [ ] Direct URL access works (e.g., `/services` loads correctly)
-- [ ] Browser back/forward works correctly
+- [ ] Page reloads with same `providerId` in URL
+- [ ] Selector shows same provider selected
+- [ ] Data matches selected provider
+
+**Test Browser DevTools**:
+1. Open DevTools → Application → Local Storage
+2. Look for key: `provider-context-storage`
+3. Verify value matches current `providerId`
+
+**Expected Results**:
+- [ ] Key exists in localStorage
+- [ ] Value matches current `providerId`
+- [ ] Value updates when provider is switched
 
 ---
 
-### 7. Access Control and Permissions
+### 5. Access Validation
 
-**Objective**: Verify that RBAC permissions work correctly.
+**Objective**: Verify that users cannot access providers they don't have permission for.
 
-**Test as Provider (OWNER role)**:
-1. Sign in as Provider 1
-2. Check navigation sidebar
-
-**Expected Results**:
-- [ ] All navigation links visible:
-  - Dashboard
-  - Bookings
-  - Services
-  - Staff
-  - Availability
-  - Wallet
-  - Settings
-- [ ] Can access all routes
-- [ ] Can manage staff
-- [ ] Can edit services
-- [ ] Can view all bookings
-- [ ] Can manage wallet
-- [ ] Can update business settings
-
-**Test as Staff (STAFF role)**:
-1. Sign in as `staff1@test.com`
-2. Check navigation sidebar
+**Test Invalid ProviderId**:
+1. Sign in as `staff-single@test.com` (only has access to Provider 1)
+2. Manually change URL to: `/dashboard?providerId=<provider-2-id>`
 
 **Expected Results**:
-- [ ] Limited navigation links visible:
-  - Dashboard
-  - Bookings
-  - Services
-  - Availability
-- [ ] Hidden links (not visible):
-  - Staff
-  - Wallet
-  - Settings
-- [ ] Cannot access `/staff` (redirects or shows error)
-- [ ] Cannot access `/wallet` (redirects or shows error)
-- [ ] Cannot access `/settings` (redirects or shows error)
-- [ ] Can view only own bookings (if STAFF role)
-- [ ] Can view only assigned services (if STAFF role)
-- [ ] Cannot edit services (read-only)
+- [ ] Error message displayed: "You don't have access to this provider"
+- [ ] Provider selection component shown
+- [ ] Can select valid provider from list
+- [ ] After selection, redirects to dashboard with valid provider
+
+**Test XSS/SQL Injection Attempts**:
+1. Try URL: `/dashboard?providerId=<script>alert('xss')</script>`
+2. Try URL: `/dashboard?providerId='; DROP TABLE users; --`
+
+**Expected Results**:
+- [ ] Invalid characters are sanitized
+- [ ] Error shown or default provider used
+- [ ] No script execution
+- [ ] No database errors
 
 ---
 
-### 8. Service Filtering for Staff
+### 6. Access Revocation
 
-**Objective**: Verify that STAFF role only sees assigned services.
+**Objective**: Verify graceful handling when staff loses access to a provider.
 
 **Steps**:
-1. Sign in as `staff1@test.com`
+1. Sign in as `staff-multi@test.com`
+2. Select Provider 2
+3. In another browser/session, sign in as Provider 2 owner
+4. Remove staff member's access
+5. Go back to first session and refresh page
+
+**Expected Results**:
+- [ ] Error message displayed
+- [ ] Provider selection component shown
+- [ ] Only accessible providers listed
+- [ ] Can select another provider
+- [ ] After selection, works normally
+
+---
+
+### 7. All Pages Respect Context
+
+**Objective**: Verify that all provider pages filter data by selected provider.
+
+#### Dashboard
+1. Select Provider 1
+2. Navigate to `/dashboard`
+3. Note booking counts, revenue, etc.
+4. Switch to Provider 2
+5. Refresh dashboard
+
+**Expected Results**:
+- [ ] Stats change to reflect Provider 2's data
+- [ ] Recent bookings show Provider 2's bookings only
+- [ ] Upcoming appointments show Provider 2's appointments only
+
+#### Services
+1. Select Provider 1
 2. Navigate to `/services`
+3. Note services listed
+4. Switch to Provider 2
+5. Navigate to `/services`
+
+**Expected Results**:
+- [ ] Services list shows only Provider 2's services
+- [ ] Service count matches Provider 2's services
+- [ ] Can create/edit services for Provider 2 (if permissions allow)
+
+#### Bookings
+1. Select Provider 1
+2. Navigate to `/bookings`
+3. Note bookings listed
+4. Switch to Provider 2
+5. Navigate to `/bookings`
+
+**Expected Results**:
+- [ ] Bookings list shows only Provider 2's bookings
+- [ ] Booking count matches Provider 2's bookings
+- [ ] For STAFF role: Only own bookings shown
+
+#### Staff
+1. Select Provider 1
+2. Navigate to `/staff`
+3. Note staff members listed
+4. Switch to Provider 2
+5. Navigate to `/staff`
+
+**Expected Results**:
+- [ ] Staff list shows only Provider 2's staff
+- [ ] Can manage Provider 2's staff (if OWNER role)
+
+#### Availability
+1. Select Provider 1
+2. Navigate to `/availability`
+3. Note availability settings
+4. Switch to Provider 2
+5. Navigate to `/availability`
+
+**Expected Results**:
+- [ ] Availability shows only Provider 2's staff availability
+- [ ] For STAFF role: Only own availability shown
+
+#### Wallet
+1. Select Provider 1
+2. Navigate to `/wallet`
+3. Note wallet balance
+4. Switch to Provider 2
+5. Navigate to `/wallet`
+
+**Expected Results**:
+- [ ] Wallet shows Provider 2's balance
+- [ ] Transactions show Provider 2's transactions only
+
+#### Settings
+1. Select Provider 1
+2. Navigate to `/settings/business`
+3. Note business details
+4. Switch to Provider 2
+5. Navigate to `/settings/business`
+
+**Expected Results**:
+- [ ] Business details show Provider 2's information
+- [ ] Can update Provider 2's details (if OWNER role)
+
+---
+
+### 8. RBAC Permissions Per Provider
+
+**Objective**: Verify that permissions work correctly per provider context.
+
+**Test OWNER Role**:
+1. Sign in as `staff-multi@test.com`
+2. Select Provider 1 (where user is OWNER)
+3. Check navigation sidebar
+
+**Expected Results**:
+- [ ] "Staff" link visible
+- [ ] "Wallet" link visible
+- [ ] "Settings" link visible
+- [ ] Can access all routes
+
+**Test STAFF Role**:
+1. Same user, select Provider 2 (where user is STAFF)
+2. Check navigation sidebar
+
+**Expected Results**:
+- [ ] "Staff" link NOT visible
+- [ ] "Wallet" link NOT visible
+- [ ] "Settings" link NOT visible
+- [ ] Can only access: Dashboard, Bookings, Services, Availability
+
+**Test Service Editing**:
+1. As OWNER on Provider 1: Can edit services
+2. As STAFF on Provider 2: Cannot edit services (read-only)
+
+**Test Booking Viewing**:
+1. As OWNER on Provider 1: See all bookings
+2. As STAFF on Provider 2: See only own bookings
+
+---
+
+### 9. Service Filtering Per Provider
+
+**Objective**: Verify that STAFF role only sees assigned services per provider.
+
+**Steps**:
+1. Sign in as `staff-multi@test.com`
+2. Select Provider 2 (STAFF role)
+3. Navigate to `/services`
 
 **Expected Results**:
 - [ ] Only services assigned to this staff member are shown
-- [ ] Badge displays: "Showing X of Y services assigned to you" (if applicable)
+- [ ] Badge displays: "Showing X of Y services assigned to you"
 - [ ] Cannot see unassigned services
 - [ ] Cannot edit services (read-only)
-- [ ] Service list is filtered correctly
+
+**Test with Multiple Providers**:
+1. Assign different services to staff in Provider 1 vs Provider 2
+2. Switch between providers
+3. Verify services list changes correctly
 
 ---
 
-### 9. Booking Filtering for Staff
+### 10. Booking Filtering Per Provider
 
-**Objective**: Verify that STAFF role only sees own bookings.
+**Objective**: Verify that STAFF role only sees own bookings per provider.
 
 **Steps**:
-1. Sign in as `staff1@test.com`
-2. Navigate to `/bookings`
+1. Sign in as `staff-multi@test.com`
+2. Select Provider 2 (STAFF role)
+3. Navigate to `/bookings`
 
 **Expected Results**:
 - [ ] Only bookings assigned to this staff member are shown
 - [ ] Cannot see other staff's bookings
 - [ ] Booking count matches own bookings only
-- [ ] Booking list is filtered correctly
 
-**Test as Provider**:
-1. Sign in as Provider 1
+**Test with OWNER Role**:
+1. Switch to Provider 1 (OWNER role)
 2. Navigate to `/bookings`
 
 **Expected Results**:
 - [ ] All bookings for Provider 1 are shown
 - [ ] Can see all staff's bookings
-- [ ] Booking count matches all bookings
 
 ---
 
-### 10. Onboarding Flow
+### 11. Navigation Link Preservation
 
-**Objective**: Verify that onboarding works correctly for new providers.
+**Objective**: Verify that all navigation links preserve `providerId`.
 
-**Test Case 1 - New Provider**:
-1. Sign up as new provider
-2. Should redirect to `/onboarding?flow=provider-signup`
-
-**Expected Results**:
-- [ ] Onboarding page is accessible
-- [ ] Can fill in business details
-- [ ] Can submit form
-- [ ] Redirects to `/dashboard` after submission
-- [ ] `onboardingCompleted` is set to `true`
-
-**Test Case 2 - Provider Without Onboarding**:
-1. Sign in as provider who hasn't completed onboarding
-2. Try to access `/dashboard`
+**Steps**:
+1. Sign in as `staff-multi@test.com`
+2. Select a provider
+3. Note the `providerId` in URL
+4. Hover over navigation links (Dashboard, Services, Bookings, etc.)
 
 **Expected Results**:
-- [ ] Redirects to `/onboarding`
-- [ ] Cannot access dashboard until onboarding completed
+- [ ] All links include `?providerId=<current-provider-id>`
+- [ ] Clicking links preserves `providerId`
+- [ ] Quick action links (Add Service, Add Staff) preserve `providerId`
 
-**Test Case 3 - Staff (No Onboarding Needed)**:
-1. Sign in as staff member
-2. Try to access `/onboarding` directly
-
-**Expected Results**:
-- [ ] Redirects to `/dashboard`
-- [ ] Staff don't need onboarding
-- [ ] `onboardingCompleted` is automatically set to `true` when staff member is created
+**Test Link Hrefs**:
+1. Right-click on navigation link
+2. Copy link address
+3. Verify it contains `providerId` parameter
 
 ---
 
-### 11. Error Handling
+### 12. Error Handling
 
-**Test Invalid Access**:
-1. Sign in as `staff1@test.com`
-2. Try to access `/staff` directly (STAFF role cannot access)
-
-**Expected Results**:
-- [ ] Error message displayed or redirects
-- [ ] Cannot access restricted routes
-- [ ] Error handling is graceful
-
-**Test Invalid Invitation**:
-1. Try to access `/signup/staff?token=invalid-token`
+**Test Invalid ProviderId**:
+1. Sign in as `staff-multi@test.com`
+2. Manually navigate to: `/dashboard?providerId=invalid-id-12345`
 
 **Expected Results**:
-- [ ] Error message: "Invalid or expired invitation"
-- [ ] Redirects to signin or shows error
+- [ ] Error component displayed
+- [ ] Error message: "You don't have access to this provider or the provider doesn't exist"
+- [ ] Provider selection dropdown shown
+- [ ] Can select valid provider from list
+- [ ] After selection, redirects to dashboard
 
-**Test Expired Invitation**:
-1. Create invitation
-2. Manually expire it in database
-3. Try to accept it
+**Test ProviderId Removal**:
+1. Sign in and select a provider
+2. Manually remove `providerId` from URL
+3. Refresh page
 
 **Expected Results**:
-- [ ] Error message: "Invitation has expired"
-- [ ] Cannot accept expired invitation
+- [ ] Either restores from localStorage or uses default provider
+- [ ] Page still loads correctly
+- [ ] No errors displayed
+
+**Test LocalStorage Corruption**:
+1. Open DevTools → Application → Local Storage
+2. Set `provider-context-storage` to invalid value
+3. Refresh page
+
+**Expected Results**:
+- [ ] Invalid value is cleared
+- [ ] Default provider is used
+- [ ] No errors displayed
 
 ---
 
-### 12. Edge Cases
+### 13. Edge Cases
 
-**Test Rapid Navigation**:
-1. Sign in as any user
-2. Rapidly navigate between pages (5-10 times quickly)
+**Test Rapid Switching**:
+1. Sign in as `staff-multi@test.com`
+2. Rapidly switch between providers (5-10 times quickly)
 
 **Expected Results**:
 - [ ] No errors occur
-- [ ] Final page loads correctly
-- [ ] Navigation is smooth
-
-**Test Browser Back/Forward**:
-1. Navigate: Dashboard → Services → Bookings
-2. Click browser back button
-3. Click browser forward button
-
-**Expected Results**:
-- [ ] Browser back navigates correctly
-- [ ] Browser forward navigates correctly
-- [ ] Page state is preserved
-- [ ] No errors displayed
+- [ ] Final provider is correctly selected
+- [ ] URL matches final selection
+- [ ] Data loads correctly
 
 **Test Concurrent Sessions**:
 1. Open two browser windows
-2. Sign in as same user in both
-3. Navigate in both windows
+2. Sign in as `staff-multi@test.com` in both
+3. Select different providers in each window
+4. Navigate in both windows
 
 **Expected Results**:
-- [ ] Each window works independently
+- [ ] Each window maintains its own provider context
 - [ ] No interference between sessions
-- [ ] Both work correctly
+- [ ] Both work independently
+
+**Test Browser Back/Forward**:
+1. Select Provider 1
+2. Navigate to Services
+3. Switch to Provider 2
+4. Navigate to Bookings
+5. Click browser back button
+
+**Expected Results**:
+- [ ] Browser back navigates correctly
+- [ ] Provider context is preserved
+- [ ] URL shows correct `providerId`
 
 ---
 
@@ -541,43 +631,32 @@ The automated test suite covers:
 ### "Sign in failed" errors
 - Verify test users exist in database
 - Check passwords match `Test1234!`
-- Ensure Clerk is configured correctly
-- Check Clerk dashboard for user status
+- Ensure Better Auth is working
 
 ### "Timeout waiting for /dashboard"
 - Check if user completed onboarding
 - Verify user has provider access
 - Check browser console for errors
-- Verify Clerk session is valid
 
-### "Onboarding page redirects immediately"
-- Check if `onboardingCompleted` is already `true`
-- Verify user is not staff (staff don't need onboarding)
-- Check flow parameter in URL
+### "Provider selector not found"
+- Verify staff member has multiple providers
+- Check that providers are ACTIVE
+- Verify staff memberships are active
 
 ### Tests timeout on signin
 - Check if dev server is running on port 3000
 - Verify no compilation errors in terminal
 - Check browser console for errors
-- Verify Clerk keys are correct
 
 ### Tests fail with "element not found"
 - Verify test users exist in database
 - Check that signin is working manually
 - Increase timeout in `playwright.config.ts`
-- Verify Clerk components are rendering
 
 ### Tests fail with authentication errors
 - Verify test user credentials
 - Check database for user records
-- Ensure Clerk is configured correctly
-- Verify Clerk webhooks are set up (if using)
-
-### CAPTCHA errors
-- Check Clerk CAPTCHA configuration
-- Verify browser extensions aren't blocking CAPTCHA
-- Check network connectivity
-- Review Clerk dashboard for CAPTCHA settings
+- Ensure Better Auth is configured correctly
 
 ### Next.js Dev Overlay
 The automated tests include helper functions to dismiss the Next.js dev overlay that can block interactions. If you see errors about overlays blocking clicks, the helpers should handle this automatically.
@@ -591,11 +670,9 @@ The automated tests include helper functions to dismiss the Next.js dev overlay 
 - [ ] No errors or unexpected behavior
 - [ ] Performance is acceptable
 - [ ] Security validations working
-- [ ] RBAC permissions correct
+- [ ] RBAC permissions correct per provider
 - [ ] Data filtering working correctly
-- [ ] Onboarding flow working
-- [ ] Staff invitations working
-- [ ] Single provider constraint enforced
+- [ ] URL and localStorage persistence working
 
 ---
 
@@ -618,35 +695,3 @@ Document any issues found during testing:
 - **OS**: [Operating system]
 - **Date**: [Test date]
 - **Tester**: [Tester name]
-
----
-
-## Architecture Notes
-
-### Key Changes from Previous Version
-
-1. **Single Provider Constraint**: Each user can only be associated with one provider (either as owner or staff). This is enforced at the database level with a unique constraint on `StaffMember.userId`.
-
-2. **No Provider Selector**: The provider selector UI component has been removed since users can only have one provider.
-
-3. **Simple URLs**: URLs no longer contain `providerId` parameters. All provider pages work with the user's single provider context.
-
-4. **Clerk Authentication**: The application now uses Clerk for authentication instead of Better Auth. All signin/signup flows use Clerk components.
-
-5. **Onboarding Tracking**: The `onboardingCompleted` field in the User model tracks whether a user has completed onboarding. Staff members automatically have this set to `true` when created.
-
-6. **Root Domain Only**: Providers and staff work on the root domain only. Subdomains are reserved for customer booking pages.
-
-### Database Constraints
-
-- `StaffMember.userId` has a unique constraint (enforced at database level)
-- `Provider.userId` has a unique constraint (one provider per user)
-- Staff cannot be created if user already has a provider
-- Provider cannot be created if user already has a staff membership
-
-### Authentication Flow
-
-1. **Provider Signup**: `/signup` → Clerk signup → `/onboarding?flow=provider-signup` → Complete onboarding → `/dashboard`
-2. **Staff Signup**: `/signup/staff?token=...` → Clerk signup → `/signup/staff/accept?token=...` → Accept invitation → `/dashboard`
-3. **Customer Signup**: `/signup/customer` → Clerk signup → `/customer/dashboard?flow=customer-signup`
-4. **Signin**: `/signin` → Clerk signin → `/auth/redirect` → Check onboarding → `/dashboard` or `/onboarding`

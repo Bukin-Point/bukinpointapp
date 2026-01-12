@@ -4,22 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createProvider } from '@/actions/provider'
 import { useToast } from '@/hooks/use-toast'
 import { industries, timezones } from '@/lib/constants'
@@ -41,15 +28,9 @@ export function OnboardingForm({ userId }: { userId: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
+    
     // Validate required fields
-    if (
-      !formData.businessName ||
-      !formData.industry ||
-      !formData.phone ||
-      !formData.email ||
-      !formData.timezone
-    ) {
+    if (!formData.businessName || !formData.industry || !formData.phone || !formData.email || !formData.timezone) {
       toast({
         title: 'Missing Information',
         description: 'Please fill in all required fields.',
@@ -75,26 +56,33 @@ export function OnboardingForm({ userId }: { userId: string }) {
       } else {
         const subdomain = (result as any).subdomain
 
-        // Build subdomain URL for display (informational only)
-        let subdomainUrl = ''
         if (subdomain) {
+          // Build subdomain URL for display
           const isLocal = process.env.NODE_ENV === 'development'
           const baseDomain = isLocal ? 'bukinpoint.test' : 'bukinpoint.com'
           const protocol = isLocal ? 'http' : 'https'
           const port = isLocal ? ':3000' : ''
-          subdomainUrl = `${protocol}://${subdomain}.${baseDomain}${port}`
+          const subdomainUrl = `${protocol}://${subdomain}.${baseDomain}${port}`
+
+          toast({
+            title: 'Profile Created!',
+            description: `Your business profile has been set up. Your booking URL: ${subdomainUrl}`,
+          })
+
+          // Redirect to subdomain dashboard after onboarding
+          const subdomainDashboardUrl = `${subdomainUrl}/dashboard`
+          
+          // Use window.location for cross-domain redirect
+          window.location.href = subdomainDashboardUrl
+        } else {
+          toast({
+            title: 'Profile Created!',
+            description: 'Your business profile has been set up successfully.',
+          })
+          // Fallback to main domain dashboard
+          router.push('/dashboard')
+          router.refresh()
         }
-
-        toast({
-          title: 'Profile Created!',
-          description: subdomain
-            ? `Your business profile has been set up. Your booking URL: ${subdomainUrl}`
-            : 'Your business profile has been set up successfully.',
-        })
-
-        // Always redirect to root domain dashboard (providers work on root domain)
-        router.push('/dashboard')
-        router.refresh()
       }
     } catch (err) {
       toast({
@@ -108,21 +96,21 @@ export function OnboardingForm({ userId }: { userId: string }) {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }))
   }
 
   const handleIndustryChange = (value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       industry: value,
     }))
   }
 
   const handleTimezoneChange = (value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       timezone: value,
     }))
@@ -136,7 +124,11 @@ export function OnboardingForm({ userId }: { userId: string }) {
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          {error && <div className="rounded-md bg-error-light p-3 text-sm text-error">{error}</div>}
+          {error && (
+            <div className="rounded-md bg-error-light p-3 text-sm text-error">
+              {error}
+            </div>
+          )}
           <div className="space-y-2">
             <label htmlFor="businessName" className="text-body-sm font-medium">
               Business Name *
@@ -224,7 +216,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
                 <SelectValue placeholder="Select timezone..." />
               </SelectTrigger>
               <SelectContent>
-                {timezones.map(tz => (
+                {timezones.map((tz) => (
                   <SelectItem key={tz.value} value={tz.value}>
                     {tz.label}
                   </SelectItem>

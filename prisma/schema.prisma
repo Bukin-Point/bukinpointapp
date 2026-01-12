@@ -7,22 +7,23 @@ datasource db {
 }
 
 // ============================================
-// USER MODEL (Clerk Authentication)
+// AUTH MODELS (Better Auth)
 // ============================================
 
 model User {
-  id                  String   @id @default(cuid())
-  clerkUserId         String?  @unique // Clerk user ID - links to Clerk authentication
-  email               String   @unique
-  emailVerified       Boolean  @default(false)
-  onboardingCompleted Boolean  @default(false) // Tracks if user has completed onboarding (staff don't need, providers do)
-  name                String?
-  image               String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id            String   @id @default(cuid())
+  clerkUserId   String?  @unique // Clerk user ID - links to Clerk authentication
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  name          String?
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   provider         Provider?
   staffMemberships StaffMember[]
+  sessions         Session[]
+  accounts         Account[]
   bookings         Booking[]
 
   @@index([email])
@@ -30,25 +31,41 @@ model User {
   @@map("user")
 }
 
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  @@index([token])
+  @@index([userId])
+  @@map("session")
+}
+
 // ============================================
 // MULTI-TENANT CORE
 // ============================================
 
 model Provider {
-  id                    String         @id @default(cuid())
-  clerkOrganizationId   String?        @unique // Clerk organization ID
-  clerkOrganizationSlug String?        @unique // Clerk organization slug (matches subdomain)
-  userId                String         @unique
-  businessName          String
-  subdomain             String?        @unique
-  industry              String
-  address               String?
-  phone                 String
-  email                 String
-  timezone              String         @default("Africa/Lagos")
-  status                ProviderStatus @default(ACTIVE)
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  businessName String
+  subdomain    String?        @unique
+  industry     String
+  address      String?
+  phone        String
+  email        String
+  timezone     String         @default("Africa/Lagos")
+  status       ProviderStatus @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   services     Service[]
@@ -77,6 +94,7 @@ model Service {
   providerId  String
   name        String
   description String?
+  image       String?  // Optional service image URL
   duration    Int // minutes
   price       Decimal  @db.Decimal(10, 2)
   isActive    Boolean  @default(true)
@@ -110,7 +128,6 @@ model StaffMember {
   bookings     Booking[]
 
   @@unique([providerId, userId])
-  @@unique([userId]) // Enforce one staff membership per user
   @@index([providerId, isActive])
 }
 
@@ -262,4 +279,36 @@ model Wallet {
   updatedAt      DateTime  @updatedAt
 
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String? // For email/password authentication - Better Auth stores password here
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }

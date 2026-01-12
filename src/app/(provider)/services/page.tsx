@@ -1,21 +1,44 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth-helpers-clerk'
+import { headers } from 'next/headers'
 import { getProviderAccess, canEditServices, isStaff, getStaffRole } from '@/lib/staff-helpers'
 import { prisma } from '@/lib/db'
 import { ServiceList } from '@/components/provider/service-list'
 import { Badge } from '@/components/ui/badge'
+import { sanitizeProviderId } from '@/lib/auth-utils'
+import { ProviderContextError } from '@/components/provider/provider-context-error'
 
-export default async function ServicesPage() {
+export default async function ServicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ providerId?: string }>
+}) {
   const session = await getSession()
 
   if (!session) {
     redirect('/signin')
   }
 
+  // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
+  const headersList = await headers()
+  const subdomainProviderId = headersList.get('x-provider-id')
+  
+  const params = await searchParams
+  // Prioritize subdomain provider ID over URL parameter for security
+  const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
+
   // Get provider access (either as provider or staff)
-  const accessContext = await getProviderAccess(session.user.id)
+  const accessContext = await getProviderAccess(session.user.id, urlProviderId)
 
   if (!accessContext) {
+    if (urlProviderId) {
+      return (
+        <ProviderContextError
+          userId={session.user.id}
+          errorMessage="You don't have access to this provider or the provider doesn't exist."
+        />
+      )
+    }
     redirect('/onboarding')
   }
 
@@ -49,32 +72,29 @@ export default async function ServicesPage() {
   }
 
   // Get total service count for STAFF role indicator
-  const totalServicesCount =
-    userIsStaff && staffRole === 'STAFF'
-      ? await prisma.service.count({ where: { providerId } })
-      : null
+  const totalServicesCount = userIsStaff && staffRole === 'STAFF'
+    ? await prisma.service.count({ where: { providerId } })
+    : null
 
   // Convert Decimal fields to numbers for client component
-  const serializedServices = services.map(service => ({
+  const serializedServices = services.map((service) => ({
     ...service,
     price: Number(service.price),
   }))
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-h1 mb-2">Services</h1>
-          <div className="flex items-center gap-2">
-            <p className="text-body-sm text-text-secondary">
-              {canEdit ? 'Manage your service offerings' : 'View service offerings'}
-            </p>
-            {userIsStaff && staffRole === 'STAFF' && totalServicesCount !== null && (
-              <Badge variant="outline" className="text-xs">
-                Showing {services.length} of {totalServicesCount} services assigned to you
-              </Badge>
-            )}
-          </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-h1 mb-2">Services</h1>
+        <div className="flex items-center gap-2">
+          <p className="text-body-sm text-text-secondary">
+            {canEdit ? 'Manage your service offerings' : 'View service offerings'}
+          </p>
+          {userIsStaff && staffRole === 'STAFF' && totalServicesCount !== null && (
+            <Badge variant="outline" className="text-xs">
+              Showing {services.length} of {totalServicesCount} services assigned to you
+            </Badge>
+          )}
         </div>
       </div>
       <ServiceList services={serializedServices} providerId={providerId} canEdit={canEdit} />

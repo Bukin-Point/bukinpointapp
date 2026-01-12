@@ -6,13 +6,10 @@ import { BookingFlow } from '@/components/booking/booking-flow'
 
 export default async function PublicBookingPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ providerId?: string }>
-  searchParams: Promise<{ serviceId?: string }>
 }) {
   const { providerId } = await params
-  const { serviceId } = await searchParams
   const session = await getSession()
   const headersList = await headers()
   const providerIdFromHeader = headersList.get('x-provider-id')
@@ -61,7 +58,7 @@ export default async function PublicBookingPage({
             <h1 className="text-h1 mb-2">Book with {provider.businessName}</h1>
             <p className="text-body-sm text-text-secondary">{provider.industry}</p>
           </div>
-          <BookingFlow provider={provider} session={session} initialServiceId={serviceId} />
+          <BookingFlow provider={provider} session={session} />
         </div>
       </div>
     </div>

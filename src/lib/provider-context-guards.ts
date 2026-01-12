@@ -6,7 +6,10 @@ import { prisma } from './db'
  * Validate that a user has access to a specific provider
  * SECURITY: This must be called before any data access
  */
-export async function validateProviderAccess(userId: string, providerId: string): Promise<boolean> {
+export async function validateProviderAccess(
+  userId: string,
+  providerId: string
+): Promise<boolean> {
   try {
     // Check if user is the provider owner
     const provider = await prisma.provider.findFirst({
@@ -52,7 +55,10 @@ export async function validateProviderAccess(userId: string, providerId: string)
 /**
  * Check if user owns a provider (not just staff)
  */
-export async function checkProviderOwnership(userId: string, providerId: string): Promise<boolean> {
+export async function checkProviderOwnership(
+  userId: string,
+  providerId: string
+): Promise<boolean> {
   try {
     const provider = await prisma.provider.findFirst({
       where: {
@@ -69,3 +75,4 @@ export async function checkProviderOwnership(userId: string, providerId: string)
     return false
   }
 }
+

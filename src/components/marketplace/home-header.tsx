@@ -55,10 +55,10 @@ export function HomeHeader() {
             ) : (
               <>
                 <Button variant="ghost" asChild>
-                  <Link href="/auth">Sign In</Link>
+                  <Link href="/signin">Sign In</Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/auth?tab=customer">Sign Up</Link>
+                  <Link href="/signup">Sign Up</Link>
                 </Button>
               </>
             )}

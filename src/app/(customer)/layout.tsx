@@ -11,7 +11,7 @@ export default async function CustomerLayout({
   const session = await getSession()
 
   if (!session) {
-    redirect('/auth')
+    redirect('/signin')
   }
 
   // Check if user is a provider or staff - if so, redirect to appropriate dashboard

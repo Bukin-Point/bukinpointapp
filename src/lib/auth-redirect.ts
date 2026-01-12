@@ -60,9 +60,8 @@ export async function getRedirectContext(
   const userType = await getUserType(userId)
 
   // Check if user needs onboarding (provider signup but no provider record)
-  const hasProviderRecord = await hasProvider(userId)
   const needsOnboarding =
-    flow === 'provider-signup' && userType === 'customer' && !hasProviderRecord
+    flow === 'provider-signup' && userType === 'customer' && !(await hasProvider(userId))
 
   return {
     userType,
@@ -88,11 +87,18 @@ async function hasProvider(userId: string): Promise<boolean> {
  * SECURITY: Verifies subdomain belongs to authenticated user
  */
 export async function getProviderSubdomain(userId: string): Promise<string | null> {
+  // #region agent log
+  fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-redirect.ts:89',message:'Getting provider subdomain',data:{userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
   try {
     const provider = await prisma.provider.findUnique({
       where: { userId },
       select: { subdomain: true, status: true, id: true, businessName: true },
     })
+
+    // #region agent log
+    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-redirect.ts:95',message:'Provider subdomain query result',data:{userId,found:!!provider,providerId:provider?.id,businessName:provider?.businessName,subdomain:provider?.subdomain,status:provider?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
 
     // Only return if provider exists and is active
     if (!provider || provider.status !== 'ACTIVE' || !provider.subdomain) {
@@ -233,29 +239,35 @@ export async function getSecureSubdomainRedirect(
   if (!safePath || safePath === '/' || safePath === '') {
     safePath = '/dashboard'
   }
-
+  
   // Double-check: if path somehow still contains 'signin', force it to /dashboard
   if (safePath.toLowerCase().includes('signin')) {
-    console.warn(
-      '[getSecureSubdomainRedirect] Path contains signin, forcing to /dashboard:',
-      safePath
-    )
+    console.warn('[getSecureSubdomainRedirect] Path contains signin, forcing to /dashboard:', safePath)
     safePath = '/dashboard'
   }
-
+  
   const redirectUrl = `${protocol}://${subdomain}.${baseDomain}${port}${safePath}`
-
+  
+  // #region agent log
+  // Log for debugging (remove in production)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[getSecureSubdomainRedirect] Built redirect URL:', {
+      subdomain,
+      path,
+      safePath,
+      redirectUrl,
+    })
+  }
+  // #endregion
+  
   // Final validation: ensure redirect URL doesn't contain /signin
   if (redirectUrl.includes('/signin')) {
-    console.error(
-      '[getSecureSubdomainRedirect] CRITICAL: Redirect URL contains /signin!',
-      redirectUrl
-    )
+    console.error('[getSecureSubdomainRedirect] CRITICAL: Redirect URL contains /signin!', redirectUrl)
     // Fix it
     const fixedUrl = redirectUrl.replace('/signin', '/dashboard')
     console.warn('[getSecureSubdomainRedirect] Fixed redirect URL:', fixedUrl)
     return fixedUrl
   }
-
+  
   return redirectUrl
 }

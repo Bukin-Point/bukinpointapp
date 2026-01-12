@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { Service } from '@prisma/client'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { ServiceForm } from '@/components/provider/service-form'
+import { ServiceTable } from '@/components/provider/service-table'
+import { ServiceDetailsModal } from '@/components/provider/service-details-modal'
+import { ServiceFormModal } from '@/components/provider/service-form-modal'
 import { deleteService } from '@/actions/services'
-import { Plus, Trash2, Edit } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 interface ServiceListProps {
   services: Service[]
@@ -16,9 +17,12 @@ interface ServiceListProps {
 }
 
 export function ServiceList({ services: initialServices, providerId, canEdit = true }: ServiceListProps) {
+  const { toast } = useToast()
   const [services, setServices] = useState(initialServices)
+  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [editingService, setEditingService] = useState<Service | null>(null)
-  const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState<string | null>(null)
 
   const handleDelete = async (serviceId: string) => {
@@ -31,19 +35,41 @@ export function ServiceList({ services: initialServices, providerId, canEdit = t
       const result = await deleteService(serviceId)
       if (result.success) {
         setServices((prev) => prev.filter((s) => s.id !== serviceId))
+        toast({
+          title: 'Success',
+          description: 'Service deleted successfully',
+        })
       } else {
-        alert(result.error || 'Failed to delete service')
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to delete service',
+          variant: 'destructive',
+        })
       }
     } catch (error) {
-      alert('An error occurred')
+      toast({
+        title: 'Error',
+        description: 'An error occurred while deleting the service',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(null)
     }
   }
 
+  const handleViewDetails = (service: Service) => {
+    setSelectedService(service)
+    setIsDetailsModalOpen(true)
+  }
+
   const handleEdit = (service: Service) => {
     setEditingService(service)
-    setShowForm(true)
+    setIsFormModalOpen(true)
+  }
+
+  const handleCreate = () => {
+    setEditingService(null)
+    setIsFormModalOpen(true)
   }
 
   const handleFormSuccess = (newService: Service) => {
@@ -55,96 +81,45 @@ export function ServiceList({ services: initialServices, providerId, canEdit = t
     } else {
       setServices((prev) => [newService, ...prev])
     }
-    setShowForm(false)
+    setIsFormModalOpen(false)
   }
 
   return (
     <div className="space-y-4">
       {canEdit && (
         <div className="flex justify-end">
-          <Button onClick={() => {
-            setEditingService(null)
-            setShowForm(true)
-          }}>
+          <Button onClick={handleCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Add Service
           </Button>
         </div>
       )}
 
-      {canEdit && showForm && (
-        <ServiceForm
-          providerId={providerId}
-          service={editingService || undefined}
-          onSuccess={handleFormSuccess}
-          onCancel={() => {
-            setShowForm(false)
-            setEditingService(null)
-          }}
-        />
-      )}
+      <ServiceTable
+        services={services}
+        onViewDetails={handleViewDetails}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        loading={loading}
+        canEdit={canEdit}
+      />
 
-      {services.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-body-sm text-text-secondary">
-              No services yet. Create your first service to get started.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {services.map((service) => (
-            <Card key={service.id}>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-h4">{service.name}</CardTitle>
-                  <Badge variant={service.isActive ? 'default' : 'secondary'}>
-                    {service.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
-                {service.description && (
-                  <CardDescription>{service.description}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-body-sm">
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Duration:</span>
-                    <span className="font-medium">{service.duration} min</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">Price:</span>
-                    <span className="font-medium">
-                      ₦{Number(service.price).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-                {canEdit && (
-                  <div className="mt-4 flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(service)}
-                    >
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(service.id)}
-                      disabled={loading === service.id}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {loading === service.id ? 'Deleting...' : 'Delete'}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <ServiceDetailsModal
+        service={selectedService}
+        open={isDetailsModalOpen}
+        onOpenChange={setIsDetailsModalOpen}
+        onEdit={handleEdit}
+        canEdit={canEdit}
+      />
+
+      {canEdit && (
+        <ServiceFormModal
+          providerId={providerId}
+          service={editingService}
+          open={isFormModalOpen}
+          onOpenChange={setIsFormModalOpen}
+          onSuccess={handleFormSuccess}
+        />
       )}
     </div>
   )

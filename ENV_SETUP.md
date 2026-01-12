@@ -81,6 +81,13 @@ SLOT_LOCK_TTL="300"
 # Email Service (Resend)
 RESEND_API_KEY="re_xxxxxxxxxxxxx"
 RESEND_FROM_EMAIL="BukinPoint <onboarding@resend.dev>"  # Optional: Use verified domain in production
+
+# Image Storage (Cloudflare R2)
+CLOUDFLARE_R2_ACCOUNT_ID="your-account-id"
+CLOUDFLARE_R2_ACCESS_KEY_ID="your-access-key-id"
+CLOUDFLARE_R2_SECRET_ACCESS_KEY="your-secret-access-key"
+CLOUDFLARE_R2_BUCKET_NAME="bukinpoint-images"
+CLOUDFLARE_R2_PUBLIC_URL="https://pub-xxxxx.r2.dev"  # Or custom domain: https://images.yourdomain.com
 ```
 
 ---
@@ -178,3 +185,246 @@ RESEND_FROM_EMAIL="BukinPoint <noreply@yourdomain.com>"
 2. Add your domain
 3. Add DNS records as instructed
 4. Wait for verification (usually a few minutes)
+
+---
+
+## Image Storage (Cloudflare R2)
+
+### Overview
+BukinPoint uses Cloudflare R2 for image storage. R2 is S3-compatible object storage with automatic optimization and CDN delivery.
+
+### Required Environment Variables
+
+```env
+# Cloudflare R2 Configuration
+CLOUDFLARE_R2_ACCOUNT_ID="your-account-id"
+CLOUDFLARE_R2_ACCESS_KEY_ID="your-access-key-id"
+CLOUDFLARE_R2_SECRET_ACCESS_KEY="your-secret-access-key"
+CLOUDFLARE_R2_BUCKET_NAME="bukinpoint-images"
+CLOUDFLARE_R2_PUBLIC_URL="https://pub-xxxxx.r2.dev"
+```
+
+### CLOUDFLARE_R2_ACCOUNT_ID
+
+**What it is:**
+Your Cloudflare account ID, used to construct the R2 endpoint URL.
+
+**Where to get it:**
+1. Log in to Cloudflare dashboard
+2. Go to any page (e.g., Overview)
+3. Your Account ID is displayed in the right sidebar
+4. Copy the ID (format: 32-character alphanumeric string)
+
+**Example:**
+```env
+CLOUDFLARE_R2_ACCOUNT_ID="a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6"
+```
+
+### CLOUDFLARE_R2_ACCESS_KEY_ID and CLOUDFLARE_R2_SECRET_ACCESS_KEY
+
+**What it is:**
+R2 API token credentials (S3-compatible) for accessing your R2 bucket. These are different from regular Cloudflare API tokens and are specifically for R2/S3-compatible operations.
+
+**Important:** You need **R2 API Tokens**, not regular Cloudflare API Tokens. Regular API tokens won't work with the S3 SDK.
+
+**Where to get it:**
+
+Follow the official [Cloudflare R2 API Tokens guide](https://developers.cloudflare.com/r2/api/tokens/):
+
+1. **Navigate to R2 API Tokens:**
+   - Go to Cloudflare Dashboard: https://dash.cloudflare.com/
+   - Navigate to **R2 object storage** page: https://dash.cloudflare.com/?to=/:account/r2/overview
+   - Click **"Manage API tokens"** button
+   - ⚠️ **Critical**: This is in the R2 section, NOT "My Profile → API Tokens"
+   - Regular Cloudflare API tokens won't work - you need R2-specific tokens
+
+2. **Create R2 API Token:**
+   - Choose token type:
+     - **Create Account API token** (Recommended for production)
+       - Tied to your Cloudflare account
+       - Requires Super Administrator role
+       - Remains valid until manually revoked
+     - **Create User API token**
+       - Tied to your individual user
+       - Inherits your personal permissions
+   - Under **Permissions**, select **"Object Read & Write"**
+     - This allows reading, writing, and listing objects in buckets
+   - (Optional) Scope to specific buckets for better security
+   - Click **"Create Account API token"** or **"Create User API token"**
+
+3. **Copy Your Credentials:**
+   After creation, you'll receive **TWO separate values**:
+   - **Access Key ID** (the token ID) → `CLOUDFLARE_R2_ACCESS_KEY_ID`
+   - **Secret Access Key** (SHA-256 hash of token value) → `CLOUDFLARE_R2_SECRET_ACCESS_KEY`
+   - ⚠️ **WARNING**: You will NOT be able to access the Secret Access Key again!
+   - Save both values immediately to a secure location
+
+**If you only see one "access token" value:**
+- You created a regular Cloudflare API Token (from "My Profile → API Tokens")
+- Delete it and create an R2 API Token from the R2 section instead
+- R2 API Tokens provide Access Key ID + Secret Access Key pairs (S3-compatible)
+
+**Example:**
+```env
+CLOUDFLARE_R2_ACCESS_KEY_ID="abc123def456ghi789"
+CLOUDFLARE_R2_SECRET_ACCESS_KEY="xyz789uvw456rst123abc456def789ghi012jkl345"
+```
+
+**Security Notes:**
+- Never commit these keys to version control
+- Rotate keys periodically
+- Use different keys for development and production
+- Restrict API token permissions to only what's needed
+
+### CLOUDFLARE_R2_BUCKET_NAME
+
+**What it is:**
+The name of your R2 bucket where images will be stored.
+
+**How to create:**
+1. Go to Cloudflare Dashboard → R2
+2. Click "Create bucket"
+3. Enter a bucket name (e.g., `bukinpoint-images`)
+4. Choose a location (closest to your users)
+5. Click "Create bucket"
+
+**Example:**
+```env
+CLOUDFLARE_R2_BUCKET_NAME="bukinpoint-images"
+```
+
+**Bucket Settings:**
+- **Public Access**: Enable if you want direct public URLs
+- **Custom Domain**: Optional - set up a custom domain for better branding
+- **CORS**: Configure if needed for direct browser uploads (handled by presigned URLs)
+
+### CLOUDFLARE_R2_PUBLIC_URL
+
+**What it is:**
+The public URL where your R2 bucket images are accessible. This can be either:
+- The default R2 public URL (format: `https://pub-{account-id}.r2.dev`)
+- A custom domain you've configured
+
+**Where to get it:**
+
+**Option 1: Default R2 Public URL**
+1. Go to your R2 bucket → Settings
+2. Under "Public Access", you'll see the public URL
+3. Format: `https://pub-{account-id}.r2.dev`
+4. Copy this URL
+
+**Option 2: Custom Domain (Recommended for Production)**
+1. Go to your R2 bucket → Settings → Custom Domain
+2. Add your custom domain (e.g., `images.bukinpoint.com`)
+3. Add the required DNS records (CNAME)
+4. Wait for verification
+5. Use your custom domain as the public URL
+
+**Example (Default):**
+```env
+CLOUDFLARE_R2_PUBLIC_URL="https://pub-a1b2c3d4e5f6g7h8.r2.dev"
+```
+
+**Example (Custom Domain):**
+```env
+CLOUDFLARE_R2_PUBLIC_URL="https://images.bukinpoint.com"
+```
+
+### Setting Up Public Access
+
+**For Default R2 URL:**
+1. Go to R2 bucket → Settings
+2. Enable "Public Access"
+3. Copy the public URL shown
+
+**For Custom Domain:**
+1. Go to R2 bucket → Settings → Custom Domain
+2. Enter your domain (e.g., `images.yourdomain.com`)
+3. Add the CNAME record to your DNS:
+   - **Type**: CNAME
+   - **Name**: `images` (or your subdomain)
+   - **Target**: The R2 domain provided
+4. Wait for DNS propagation (usually a few minutes)
+5. Cloudflare will verify automatically
+
+### Image Organization Structure
+
+Images are automatically organized in R2 with the following structure:
+
+```
+providers/
+  {providerId}/
+    services/
+      {serviceId}-{timestamp}.jpg
+      {serviceId}-{timestamp}.png
+    uploads/
+      {timestamp}-{filename}.jpg
+```
+
+This structure:
+- Keeps images organized by provider
+- Prevents naming conflicts
+- Makes it easy to find and manage images
+- Allows for future expansion (logos, staff photos, etc.)
+
+### Image Optimization
+
+**Automatic Optimization:**
+- Images are automatically compressed client-side before upload
+- Target file size: 2MB maximum
+- Quality: 80% (maintains visual quality while reducing size)
+- Formats: JPEG, PNG, WebP supported
+
+**File Restrictions:**
+- **Max Size**: 2MB (after compression)
+- **Allowed Types**: JPEG, JPG, PNG, WebP
+- **Validation**: Both client-side and server-side
+
+### Security Considerations
+
+1. **Presigned URLs**: 
+   - Time-limited (5 minutes)
+   - Provider-scoped (users can only upload to their own provider folder)
+   - Validated server-side before generation
+
+2. **Access Control**:
+   - Only authenticated users can generate presigned URLs
+   - Users can only upload to their own provider's folder
+   - Server validates provider access before allowing uploads
+
+3. **File Validation**:
+   - File type checked (MIME type and extension)
+   - File size validated (max 2MB)
+   - Both client and server-side validation
+
+4. **API Tokens**:
+   - Store securely in environment variables
+   - Never expose in client-side code
+   - Rotate periodically
+
+### Troubleshooting
+
+**"Missing Cloudflare R2 configuration" error:**
+- Check that all 5 environment variables are set
+- Verify variable names are correct (case-sensitive)
+- Restart your development server after adding env vars
+
+**"Access denied" when uploading:**
+- Verify you're using R2 API Tokens (Access Key ID + Secret Access Key), not regular API tokens
+- Check that the token has "Object Read & Write" permissions
+- Verify the token is scoped to the correct bucket
+- Check that bucket name matches exactly
+- Ensure account ID is correct
+- If using a regular API token, delete it and create an R2 API Token instead
+
+**Images not displaying:**
+- Verify `CLOUDFLARE_R2_PUBLIC_URL` is correct
+- Check that public access is enabled on the bucket
+- Verify Next.js config includes R2 domain in `remotePatterns`
+- Check browser console for CORS errors
+
+**Upload fails:**
+- Check file size (must be under 2MB after compression)
+- Verify file type is allowed (JPEG, PNG, WebP)
+- Check network connection
+- Review server logs for detailed error messages

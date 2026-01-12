@@ -1,15 +1,15 @@
 /**
  * E2E Tests for Provider Context System
- *
+ * 
  * This test suite covers the multi-provider context switching functionality
  * for staff members who work with multiple providers.
- *
+ * 
  * Prerequisites:
  * - Database is set up with test data
  * - Redis is running
  * - Development server is running (npm run dev)
  * - Test users and providers are created
- *
+ * 
  * Test Scenarios:
  * 1. Staff with single provider (no selector shown)
  * 2. Staff with multiple providers (selector shown, can switch)
@@ -33,7 +33,7 @@ async function dismissDevOverlay(page: any) {
     const overlay = document.querySelector('[data-nextjs-dev-overlay]')
     if (overlay) overlay.remove()
     const portals = document.querySelectorAll('nextjs-portal')
-    portals.forEach(p => p.remove())
+    portals.forEach((p) => p.remove())
   })
   // Wait a bit for overlay removal
   await page.waitForTimeout(100)
@@ -52,15 +52,9 @@ async function signIn(page: any, email: string, password: string) {
     await page.waitForURL(/\/dashboard|\/onboarding|\/signin/, { timeout: 15000 })
   } catch (e) {
     // If navigation fails, check for error messages
-    const errorText = await page
-      .locator('text=/error|invalid|not found/i')
-      .first()
-      .textContent()
-      .catch(() => null)
+    const errorText = await page.locator('text=/error|invalid|not found/i').first().textContent().catch(() => null)
     if (errorText) {
-      throw new Error(
-        `Sign in failed: ${errorText}. Test user may not exist. Please create test data first.`
-      )
+      throw new Error(`Sign in failed: ${errorText}. Test user may not exist. Please create test data first.`)
     }
     throw e
   }
@@ -97,10 +91,10 @@ test.describe('Provider Context System - E2E Tests', () => {
     // Clear localStorage and cookies before each test
     await page.goto('/')
     await dismissDevOverlay(page)
-
+    
     await page.evaluate(() => {
       localStorage.clear()
-      document.cookie.split(';').forEach(c => {
+      document.cookie.split(';').forEach((c) => {
         document.cookie = c
           .replace(/^ +/, '')
           .replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/')
@@ -109,13 +103,11 @@ test.describe('Provider Context System - E2E Tests', () => {
   })
 
   test.describe('1. Staff with Single Provider', () => {
-    test('should not show provider selector when staff has only one provider', async ({ page }) => {
+    test('should not show provider selector when staff has only one provider', async ({
+      page,
+    }) => {
       // Sign in as staff with single provider
-      await signIn(
-        page,
-        TEST_USERS.staffSingleProvider.email,
-        TEST_USERS.staffSingleProvider.password
-      )
+      await signIn(page, TEST_USERS.staffSingleProvider.email, TEST_USERS.staffSingleProvider.password)
 
       // Wait for redirect to dashboard (with longer timeout for first load)
       await page.waitForURL('/dashboard', { timeout: 15000 })
@@ -130,11 +122,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should work normally without providerId in URL', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffSingleProvider.email,
-        TEST_USERS.staffSingleProvider.password
-      )
+      await signIn(page, TEST_USERS.staffSingleProvider.email, TEST_USERS.staffSingleProvider.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -149,13 +137,11 @@ test.describe('Provider Context System - E2E Tests', () => {
   })
 
   test.describe('2. Staff with Multiple Providers', () => {
-    test('should show provider selector when staff has multiple providers', async ({ page }) => {
+    test('should show provider selector when staff has multiple providers', async ({
+      page,
+    }) => {
       // Sign in as staff with multiple providers
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -170,11 +156,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should switch between providers using selector', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -207,11 +189,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should display correct business name after switching', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -228,11 +206,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
   test.describe('3. URL Parameter Persistence', () => {
     test('should preserve providerId in URL when navigating', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -259,13 +233,11 @@ test.describe('Provider Context System - E2E Tests', () => {
       }
     })
 
-    test('should load correct provider from URL parameter on direct access', async ({ page }) => {
+    test('should load correct provider from URL parameter on direct access', async ({
+      page,
+    }) => {
       // First, sign in and get a providerId
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -291,11 +263,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
   test.describe('4. LocalStorage Persistence', () => {
     test('should persist selected provider in localStorage', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -314,11 +282,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should restore provider from localStorage on page refresh', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -328,7 +292,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
       if (providerId) {
         // Set it in localStorage manually
-        await page.evaluate(id => {
+        await page.evaluate((id) => {
           localStorage.setItem('bukinpoint_selected_provider_id', id)
         }, providerId)
 
@@ -345,11 +309,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
   test.describe('5. Access Validation', () => {
     test('should deny access to provider without permission', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffSingleProvider.email,
-        TEST_USERS.staffSingleProvider.password
-      )
+      await signIn(page, TEST_USERS.staffSingleProvider.email, TEST_USERS.staffSingleProvider.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -358,16 +318,12 @@ test.describe('Provider Context System - E2E Tests', () => {
       await page.goto('/dashboard?providerId=invalid-provider-id')
 
       // Should show error message or redirect
-      const errorMessage = page.locator("text=/don't have access|Access denied|Invalid provider/i")
+      const errorMessage = page.locator('text=/don\'t have access|Access denied|Invalid provider/i')
       await expect(errorMessage.first()).toBeVisible({ timeout: 5000 })
     })
 
     test('should validate providerId format', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -389,11 +345,7 @@ test.describe('Provider Context System - E2E Tests', () => {
       // 3. In another session, remove staff access
       // 4. Refresh page and verify error handling
 
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -402,18 +354,14 @@ test.describe('Provider Context System - E2E Tests', () => {
       await page.goto('/dashboard?providerId=revoked-provider-id')
 
       // Should show error with provider selection option
-      const errorComponent = page.locator("text=/Provider Access Error|don't have access/i")
+      const errorComponent = page.locator('text=/Provider Access Error|don\'t have access/i')
       await expect(errorComponent.first()).toBeVisible({ timeout: 5000 })
     })
   })
 
   test.describe('7. All Pages Respect Context', () => {
     test('should filter dashboard data by selected provider', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -427,11 +375,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should filter services by selected provider', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -456,11 +400,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should filter bookings by selected provider', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -493,11 +433,7 @@ test.describe('Provider Context System - E2E Tests', () => {
   test.describe('8. RBAC Permissions Per Provider', () => {
     test('should show/hide routes based on role per provider', async ({ page }) => {
       // Sign in as staff with OWNER role for one provider and STAFF role for another
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -531,11 +467,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should restrict service editing based on role per provider', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -558,12 +490,10 @@ test.describe('Provider Context System - E2E Tests', () => {
   })
 
   test.describe('9. Service Filtering Per Provider', () => {
-    test('should show only assigned services for STAFF role per provider', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+    test('should show only assigned services for STAFF role per provider', async ({
+      page,
+    }) => {
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -589,11 +519,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
   test.describe('10. Booking Filtering Per Provider', () => {
     test('should show only own bookings for STAFF role per provider', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -616,11 +542,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
   test.describe('11. Navigation Link Preservation', () => {
     test('should preserve providerId in all navigation links', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -662,9 +584,7 @@ test.describe('Provider Context System - E2E Tests', () => {
       const providerId = new URL(url).searchParams.get('providerId') || 'current-provider'
 
       // Check quick action links
-      const addServiceLink = page
-        .locator('a:has-text("Add Service"), a:has-text("Service")')
-        .first()
+      const addServiceLink = page.locator('a:has-text("Add Service"), a:has-text("Service")').first()
       if (await addServiceLink.isVisible()) {
         const href = await addServiceLink.getAttribute('href')
         // Should contain providerId or be relative (will use current context)
@@ -675,11 +595,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
   test.describe('12. Error Handling', () => {
     test('should show error when invalid providerId in URL', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -688,7 +604,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
       // Should show error component
       const errorMessage = page.locator(
-        "text=/Provider Access Error|don't have access|Invalid provider/i"
+        'text=/Provider Access Error|don\'t have access|Invalid provider/i'
       )
       await expect(errorMessage.first()).toBeVisible({ timeout: 5000 })
 
@@ -698,11 +614,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should allow provider selection from error state', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -727,11 +639,7 @@ test.describe('Provider Context System - E2E Tests', () => {
 
   test.describe('13. Edge Cases', () => {
     test('should handle providerId removal from URL gracefully', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -753,11 +661,7 @@ test.describe('Provider Context System - E2E Tests', () => {
         localStorage.setItem('bukinpoint_selected_provider_id', 'invalid-id')
       })
 
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -768,11 +672,7 @@ test.describe('Provider Context System - E2E Tests', () => {
     })
 
     test('should handle rapid provider switching', async ({ page }) => {
-      await signIn(
-        page,
-        TEST_USERS.staffMultipleProviders.email,
-        TEST_USERS.staffMultipleProviders.password
-      )
+      await signIn(page, TEST_USERS.staffMultipleProviders.email, TEST_USERS.staffMultipleProviders.password)
 
       await page.waitForURL('/dashboard', { timeout: 5000 })
 
@@ -797,35 +697,35 @@ test.describe('Provider Context System - E2E Tests', () => {
 
 /**
  * Test Data Setup Instructions:
- *
+ * 
  * Before running these tests, you need to set up the following in your test database:
- *
+ * 
  * 1. Create Provider 1:
  *    - Email: provider1@test.com
  *    - Password: Test1234!
  *    - Business Name: Business One
  *    - Complete onboarding
- *
+ * 
  * 2. Create Provider 2:
  *    - Email: provider2@test.com
  *    - Password: Test1234!
  *    - Business Name: Business Two
  *    - Complete onboarding
- *
+ * 
  * 3. Create Staff Member (Single Provider):
  *    - Email: staff-single@test.com
  *    - Password: Test1234!
  *    - Invite as STAFF to Provider 1 only
  *    - Accept invitation and sign up
- *
+ * 
  * 4. Create Staff Member (Multiple Providers):
  *    - Email: staff-multi@test.com
  *    - Password: Test1234!
  *    - Invite as OWNER to Provider 1
  *    - Invite as STAFF to Provider 2
  *    - Accept both invitations and sign up
- *
+ * 
  * 5. Create test services and bookings for both providers
- *
+ * 
  * 6. Assign services to staff members as needed for filtering tests
  */

@@ -1,4 +1,5 @@
 import { StaffRole } from '@prisma/client'
+import { useProviderContext } from '@/store/provider-context'
 
 export interface StaffContext {
   staffMember: {
@@ -10,6 +11,7 @@ export interface StaffContext {
   provider: {
     id: string
     businessName: string
+    industry: string
     userId: string
   }
 }
@@ -18,6 +20,7 @@ export interface ProviderContext {
   provider: {
     id: string
     businessName: string
+    industry: string
     userId: string
   }
 }
@@ -145,3 +148,18 @@ export function getStaffRole(context: AccessContext | null): StaffRole | null {
   return null
 }
 
+/**
+ * Get selected provider ID from Zustand store (client-side only)
+ */
+export function getSelectedProviderId(): string | null {
+  if (typeof window === 'undefined') return null
+  const state = useProviderContext.getState()
+  return state.selectedProviderId
+}
+
+/**
+ * React hook to access provider context
+ */
+export function useProviderContextHook() {
+  return useProviderContext()
+}

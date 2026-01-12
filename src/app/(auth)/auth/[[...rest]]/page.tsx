@@ -1,10 +1,11 @@
-import { UnifiedAuth } from '@/components/auth/unified-auth'
+import { redirect } from 'next/navigation'
 
 export const metadata = {
-  title: 'Sign In or Sign Up | BukinPoint',
-  description: 'Sign in or create an account to book services or manage your business',
+  title: 'Sign In | BukinPoint',
+  description: 'Sign in to manage your business',
 }
 
 export default function AuthPage() {
-  return <UnifiedAuth />
+  // Redirect to signin page
+  redirect('/signin')
 }

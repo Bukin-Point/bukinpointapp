@@ -17,7 +17,7 @@ import {
 import { Eye, EyeOff } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { getRedirectContext, type AuthFlow } from '@/lib/auth-redirect'
-import { getRedirectPath } from '@/lib/auth-utils'
+import { getRedirectPath, getRedirectUrlWithSubdomain, validateRedirectUrl } from '@/lib/auth-utils'
 
 export function SignUpForm() {
   const router = useRouter()
@@ -46,16 +46,41 @@ export function SignUpForm() {
       const urlParams = new URLSearchParams(window.location.search)
       const signupFlow = urlParams.get('flow') as AuthFlow | null
 
-      // If this is a provider signup flow, redirect to onboarding
+      // If this is a provider signup flow, check for subdomain redirect
       if (signupFlow === 'provider-signup') {
-        router.push('/onboarding?flow=provider-signup')
+        getRedirectContext(session.user.id, signupFlow).then(async context => {
+          const redirectUrl = await getRedirectUrlWithSubdomain(context, session.user.id)
+
+          // SECURITY: Validate URL before redirect
+          if (redirectUrl.startsWith('http://') || redirectUrl.startsWith('https://')) {
+            if (validateRedirectUrl(redirectUrl)) {
+              window.location.href = redirectUrl
+            } else {
+              // Security validation failed - fallback to path
+              router.push('/onboarding?flow=provider-signup')
+            }
+          } else {
+            // Path - use router
+            router.push(redirectUrl)
+          }
+        })
         return
       }
 
       // Otherwise, determine user type and redirect accordingly
       getRedirectContext(session.user.id, signupFlow || null).then(async context => {
-        const redirectPath = getRedirectPath(context)
-        router.push(redirectPath)
+        const redirectUrl = await getRedirectUrlWithSubdomain(context, session.user.id)
+
+        // SECURITY: Validate URL before redirect
+        if (redirectUrl.startsWith('http://') || redirectUrl.startsWith('https://')) {
+          if (validateRedirectUrl(redirectUrl)) {
+            window.location.href = redirectUrl
+          } else {
+            router.push(getRedirectPath(context))
+          }
+        } else {
+          router.push(redirectUrl)
+        }
       })
     }
   }, [session, router, justSignedUp])

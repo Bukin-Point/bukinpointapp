@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { signUp, useSession } from '@/lib/auth-client'
 import { acceptInvitationAfterSignup } from '@/actions/staff-invitations'
 import { getRedirectContext } from '@/lib/auth-redirect'
-import { getRedirectPath } from '@/lib/auth-utils'
+import { getRedirectPath, getRedirectUrlWithSubdomain, validateRedirectUrl } from '@/lib/auth-utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -61,9 +61,21 @@ export function StaffSignUpForm({ invitation }: StaffSignUpFormProps) {
                 title: 'Welcome!',
                 description: `You've joined ${invitation.provider.businessName}!`,
               })
-              // Wait a bit for database to sync, then redirect to root domain dashboard
-              setTimeout(() => {
-                router.push('/dashboard')
+              // Wait a bit for database to sync, then redirect
+              setTimeout(async () => {
+                const context = await getRedirectContext(session.user.id, 'staff-signup')
+                const redirectUrl = await getRedirectUrlWithSubdomain(context, session.user.id)
+
+                // SECURITY: Validate URL before redirect
+                if (redirectUrl.startsWith('http://') || redirectUrl.startsWith('https://')) {
+                  if (validateRedirectUrl(redirectUrl)) {
+                    window.location.href = redirectUrl
+                  } else {
+                    router.push(getRedirectPath(context))
+                  }
+                } else {
+                  router.push(redirectUrl)
+                }
                 router.refresh()
               }, 500)
             }
@@ -77,8 +89,21 @@ export function StaffSignUpForm({ invitation }: StaffSignUpFormProps) {
             })
           })
       } else if (!signupSuccess) {
-        // Already signed in and no signup success flag - redirect to root domain dashboard
-        router.push('/dashboard')
+        // Already signed in and no signup success flag - check if staff and redirect accordingly
+        getRedirectContext(session.user.id, 'staff-signup').then(async (context) => {
+          const redirectUrl = await getRedirectUrlWithSubdomain(context, session.user.id)
+
+          // SECURITY: Validate URL before redirect
+          if (redirectUrl.startsWith('http://') || redirectUrl.startsWith('https://')) {
+            if (validateRedirectUrl(redirectUrl)) {
+              window.location.href = redirectUrl
+            } else {
+              router.push(getRedirectPath(context))
+            }
+          } else {
+            router.push(redirectUrl)
+          }
+        })
       }
     }
   }, [session, router, invitation])

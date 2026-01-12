@@ -9,7 +9,9 @@ config()
 // Ensure DATABASE_URL is set
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) {
-  throw new Error('DATABASE_URL environment variable is not set. Please set it in your .env file.')
+  throw new Error(
+    'DATABASE_URL environment variable is not set. Please set it in your .env file.'
+  )
 }
 
 // Set up Prisma with adapter (same as src/lib/db.ts)
@@ -68,6 +70,9 @@ async function main() {
   await prisma.provider.deleteMany()
   console.log('✅ Providers deleted')
 
+  // Note: Session, Account, and Verification models were removed after migrating to Clerk
+  // Clerk handles authentication, so these are no longer needed
+
   console.log('Deleting users...')
   await prisma.user.deleteMany()
   console.log('✅ Users deleted')
@@ -77,7 +82,7 @@ async function main() {
 }
 
 main()
-  .catch(error => {
+  .catch((error) => {
     console.error('❌ Error cleaning database:', error)
     process.exit(1)
   })

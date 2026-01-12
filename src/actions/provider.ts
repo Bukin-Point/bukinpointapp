@@ -29,15 +29,6 @@ export async function createProvider(data: z.infer<typeof createProviderSchema>)
       return { error: 'Provider profile already exists' }
     }
 
-    // Check if user is already staff for another provider
-    const existingStaff = await prisma.staffMember.findFirst({
-      where: { userId: validated.userId },
-    })
-
-    if (existingStaff) {
-      return { error: 'You are already a staff member for another provider. Each user can only be associated with one provider.' }
-    }
-
     // Generate unique subdomain from business name
     const baseSubdomain = generateSubdomain(validated.businessName)
 
@@ -52,7 +43,7 @@ export async function createProvider(data: z.infer<typeof createProviderSchema>)
       }
     )
 
-    // Create provider and wallet in a transaction
+    // Create provider, wallet, and staff member in a transaction
     const provider = await prisma.$transaction(async (tx) => {
       const newProvider = await tx.provider.create({
         data: {
@@ -76,11 +67,43 @@ export async function createProvider(data: z.infer<typeof createProviderSchema>)
         },
       })
 
-      // Mark user as having completed onboarding
-      await tx.user.update({
-        where: { id: validated.userId },
-        data: { onboardingCompleted: true },
+      // Automatically create staff member for the provider (for small businesses)
+      // This allows providers to immediately accept bookings without manual setup
+      // Check if staff member already exists (idempotent)
+      const existingStaff = await tx.staffMember.findUnique({
+        where: {
+          providerId_userId: {
+            providerId: newProvider.id,
+            userId: validated.userId,
+          },
+        },
       })
+
+      if (!existingStaff) {
+        // Check if user is already staff for another provider (constraint check)
+        const existingStaffForOtherProvider = await tx.staffMember.findFirst({
+          where: {
+            userId: validated.userId,
+            providerId: { not: newProvider.id },
+          },
+        })
+
+        if (existingStaffForOtherProvider) {
+          // User is already staff for another provider - skip auto-creation
+          // This is allowed (user can be provider for one business and staff for another)
+          // But we won't auto-create staff member in this case
+        } else {
+          // Create staff member for the provider
+          await tx.staffMember.create({
+            data: {
+              providerId: newProvider.id,
+              userId: validated.userId,
+              role: 'OWNER',
+              isActive: true,
+            },
+          })
+        }
+      }
 
       return newProvider
     })
@@ -127,11 +150,43 @@ export async function createProvider(data: z.infer<typeof createProviderSchema>)
             },
           })
 
-          // Mark user as having completed onboarding
-          await tx.user.update({
-            where: { id: validated.userId },
-            data: { onboardingCompleted: true },
+          // Automatically create staff member for the provider (for small businesses)
+          // This allows providers to immediately accept bookings without manual setup
+          // Check if staff member already exists (idempotent)
+          const existingStaff = await tx.staffMember.findUnique({
+            where: {
+              providerId_userId: {
+                providerId: newProvider.id,
+                userId: validated.userId,
+              },
+            },
           })
+
+          if (!existingStaff) {
+            // Check if user is already staff for another provider (constraint check)
+            const existingStaffForOtherProvider = await tx.staffMember.findFirst({
+              where: {
+                userId: validated.userId,
+                providerId: { not: newProvider.id },
+              },
+            })
+
+            if (existingStaffForOtherProvider) {
+              // User is already staff for another provider - skip auto-creation
+              // This is allowed (user can be provider for one business and staff for another)
+              // But we won't auto-create staff member in this case
+            } else {
+              // Create staff member for the provider
+              await tx.staffMember.create({
+                data: {
+                  providerId: newProvider.id,
+                  userId: validated.userId,
+                  role: 'OWNER',
+                  isActive: true,
+                },
+              })
+            }
+          }
 
           return newProvider
         })

@@ -84,8 +84,43 @@ export function SignInForm({ initialEmail, invitationToken }: SignInFormProps) {
             setLoading(false)
           },
           onSuccess: async () => {
+            // #region agent log
+            fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                location: 'signin-form.tsx:452',
+                message: 'onSuccess callback triggered',
+                data: { 
+                  hasInvitationToken: !!invitationToken, 
+                  currentUrl: window.location.href,
+                  currentHostname: window.location.hostname,
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'C',
+              }),
+            }).catch(() => {})
+            // #endregion
+
             // If there's an invitation token, redirect to accept it
             if (invitationToken) {
+              // #region agent log
+              fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  location: 'signin-form.tsx:469',
+                  message: 'Redirecting to accept invitation',
+                  data: { invitationToken },
+                  timestamp: Date.now(),
+                  sessionId: 'debug-session',
+                  runId: 'run1',
+                  hypothesisId: 'C',
+                }),
+              }).catch(() => {})
+              // #endregion
               router.push(`/signin/accept-invitation?token=${invitationToken}`)
               return
             }
@@ -99,6 +134,22 @@ export function SignInForm({ initialEmail, invitationToken }: SignInFormProps) {
             // Server action reads session from cookies/headers
             try {
               const redirectUrl = await getPostSigninRedirectUrl()
+              
+              // #region agent log
+              fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  location: 'signin-form.tsx:495',
+                  message: 'Redirect URL from server action',
+                  data: { redirectUrl, isFullUrl: redirectUrl?.startsWith('http') },
+                  timestamp: Date.now(),
+                  sessionId: 'debug-session',
+                  runId: 'run1',
+                  hypothesisId: 'C',
+                }),
+              }).catch(() => {})
+              // #endregion
 
               if (redirectUrl) {
                 // SECURITY: Validate URL before redirect

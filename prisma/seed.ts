@@ -2,8 +2,14 @@ import { PrismaClient } from '@prisma/client'
 import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { scryptAsync } from '@noble/hashes/scrypt.js'
-import { hex } from '@better-auth/utils/hex'
 import { config } from 'dotenv'
+
+// Simple hex encoding function (replaces @better-auth/utils/hex)
+function hexEncode(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+}
 
 // Load environment variables
 config()
@@ -11,7 +17,9 @@ config()
 // Ensure DATABASE_URL is set
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) {
-  throw new Error('DATABASE_URL environment variable is not set. Please set it in your .env file.')
+  throw new Error(
+    'DATABASE_URL environment variable is not set. Please set it in your .env file.'
+  )
 }
 
 // Set up Prisma with adapter (same as src/lib/db.ts)
@@ -53,7 +61,7 @@ async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const key = await generateKey(password, salt)
   // Better Auth format: salt:key (both hex encoded)
-  return `${hex.encode(salt)}:${hex.encode(key)}`
+  return `${hexEncode(salt)}:${hexEncode(key)}`
 }
 
 // Helper function to generate subdomain from business name
@@ -233,7 +241,7 @@ async function main() {
   console.log('🏢 Creating providers...')
   const businessOneSubdomain = await generateUniqueSubdomain(
     generateSubdomain('Business One'),
-    async subdomain => {
+    async (subdomain) => {
       const exists = await prisma.provider.findUnique({
         where: { subdomain },
       })
@@ -243,7 +251,7 @@ async function main() {
 
   const businessTwoSubdomain = await generateUniqueSubdomain(
     generateSubdomain('Business Two'),
-    async subdomain => {
+    async (subdomain) => {
       const exists = await prisma.provider.findUnique({
         where: { subdomain },
       })
@@ -417,7 +425,7 @@ async function main() {
 
   // Staff Multi for Provider 1 (OWNER): Assign to all services
   await prisma.staffService.createMany({
-    data: provider1ServiceList.map(service => ({
+    data: provider1ServiceList.map((service) => ({
       staffId: staffMultiProvider1.id,
       serviceId: service.id,
     })),
@@ -451,7 +459,7 @@ async function main() {
 }
 
 main()
-  .catch(error => {
+  .catch((error) => {
     console.error('❌ Error seeding database:', error)
     process.exit(1)
   })

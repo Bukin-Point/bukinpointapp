@@ -24,18 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      signUpForceRedirectUrl="/onboarding?flow=provider-signup"
-      appearance={{
-        captcha: {
-          theme: 'light',
-          size: 'flexible',
-        },
-        elements: {
-          formButtonPrimary: 'bg-primary text-primary-foreground hover:bg-primary/90',
-        },
-      }}
-    >
+    <ClerkProvider>
       <html lang="en" className={poppins.variable}>
         <body className="antialiased">
           <QueryProvider>

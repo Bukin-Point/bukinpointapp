@@ -40,7 +40,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
     }
     // Build booking where clause
     const bookingWhere: any = { providerId }
-
+    
     // If staffUserId is provided, filter bookings to only those assigned to this staff member
     if (staffUserId) {
       const staffMember = await prisma.staffMember.findFirst({
@@ -49,7 +49,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
           userId: staffUserId,
         },
       })
-
+      
       if (staffMember) {
         bookingWhere.staffId = staffMember.id
       } else {
@@ -169,7 +169,10 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
           },
         },
       },
-      orderBy: [{ bookingDate: 'asc' }, { startTime: 'asc' }],
+      orderBy: [
+        { bookingDate: 'asc' },
+        { startTime: 'asc' },
+      ],
       take: 5,
     })
 

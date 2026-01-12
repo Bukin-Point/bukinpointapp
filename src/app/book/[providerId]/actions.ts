@@ -31,45 +31,49 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
     const userId = session?.user?.id
 
     const validated = createBookingSchema.parse(data)
-    
+
     // Use userId from session if not provided in data
     const finalUserId = validated.userId || userId || null
 
     // Create lock key for the slot
-    const lockKey = `slot:${validated.staffId}:${validated.bookingDate.toISOString()}:${validated.startTime}`
+    const lockKey = `slot:${validated.staffId}:${validated.bookingDate.toISOString()}:${
+      validated.startTime
+    }`
 
     // Try to acquire lock (5 minute TTL)
     const lockAcquired = await lockSlot(lockKey, 300)
 
     if (!lockAcquired) {
-      return { error: 'This time slot is currently being booked by another customer. Please try again.' }
+      return {
+        error: 'This time slot is currently being booked by another customer. Please try again.',
+      }
     }
 
     try {
       // Check if slot is available
       const conflictingBooking = await prisma.booking.findFirst({
-      where: {
-        staffId: validated.staffId,
-        bookingDate: validated.bookingDate,
-        status: {
-          notIn: ['CANCELLED'],
+        where: {
+          staffId: validated.staffId,
+          bookingDate: validated.bookingDate,
+          status: {
+            notIn: ['CANCELLED'],
+          },
+          OR: [
+            {
+              AND: [
+                { startTime: { lte: validated.startTime } },
+                { endTime: { gt: validated.startTime } },
+              ],
+            },
+            {
+              AND: [
+                { startTime: { lt: validated.endTime } },
+                { endTime: { gte: validated.endTime } },
+              ],
+            },
+          ],
         },
-        OR: [
-          {
-            AND: [
-              { startTime: { lte: validated.startTime } },
-              { endTime: { gt: validated.startTime } },
-            ],
-          },
-          {
-            AND: [
-              { startTime: { lt: validated.endTime } },
-              { endTime: { gte: validated.endTime } },
-            ],
-          },
-        ],
-      },
-    })
+      })
 
       if (conflictingBooking) {
         await releaseSlot(lockKey)
@@ -78,30 +82,31 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
 
       // Create booking
       const booking = await prisma.booking.create({
-      data: {
-        providerId: validated.providerId,
-        serviceId: validated.serviceId,
-        staffId: validated.staffId,
-        userId: finalUserId, // Link to customer account if logged in
-        customerName: validated.customerName,
-        customerPhone: validated.customerPhone,
-        customerEmail: validated.customerEmail,
-        bookingDate: validated.bookingDate,
-        startTime: validated.startTime,
-        endTime: validated.endTime,
-        notes: validated.notes,
-      },
-      include: {
-        service: { select: { name: true, price: true } },
-        provider: { select: { businessName: true, email: true, phone: true } },
-        staff: { include: { user: { select: { name: true } } } },
-      },
-    })
+        data: {
+          providerId: validated.providerId,
+          serviceId: validated.serviceId,
+          staffId: validated.staffId,
+          userId: finalUserId, // Link to customer account if logged in
+          customerName: validated.customerName,
+          customerPhone: validated.customerPhone,
+          customerEmail: validated.customerEmail,
+          bookingDate: validated.bookingDate,
+          startTime: validated.startTime,
+          endTime: validated.endTime,
+          notes: validated.notes,
+        },
+        include: {
+          service: true,
+          provider: true,
+          staff: {
+            include: {
+              user: true,
+            },
+          },
+        },
+      })
 
-      // Keep lock until payment is processed or fails
-      // Lock will expire after 5 minutes automatically
-
-      // Send email notifications (non-blocking)
+      // Send booking confirmation emails (non-blocking)
       const emailPromises: Promise<void>[] = []
 
       // Send customer confirmation email if email is provided
@@ -155,6 +160,9 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
           console.error('Error sending booking emails:', error)
         })
       }
+
+      // Keep lock until payment is processed or fails
+      // Lock will expire after 5 minutes automatically
 
       revalidatePath(`/book/${validated.providerId}`)
       return { success: true, booking, lockKey }
@@ -220,8 +228,8 @@ export async function getAvailableSlots(data: {
       return { slots: [] }
     }
 
-    staff.forEach((member) => {
-      member.availability.forEach((av) => {
+    staff.forEach(member => {
+      member.availability.forEach(av => {
         const [startHour, startMin] = av.startTime.split(':').map(Number)
         const [endHour, endMin] = av.endTime.split(':').map(Number)
         const startMinutes = startHour * 60 + startMin
@@ -230,13 +238,17 @@ export async function getAvailableSlots(data: {
         for (let minutes = startMinutes; minutes + service.duration <= endMinutes; minutes += 15) {
           const slotHour = Math.floor(minutes / 60)
           const slotMin = minutes % 60
-          const timeString = `${slotHour.toString().padStart(2, '0')}:${slotMin.toString().padStart(2, '0')}`
+          const timeString = `${slotHour.toString().padStart(2, '0')}:${slotMin
+            .toString()
+            .padStart(2, '0')}`
 
           // Check if slot conflicts with existing bookings
           const slotEndMinutes = minutes + service.duration
-          const slotEndTime = `${Math.floor(slotEndMinutes / 60).toString().padStart(2, '0')}:${(slotEndMinutes % 60).toString().padStart(2, '0')}`
+          const slotEndTime = `${Math.floor(slotEndMinutes / 60)
+            .toString()
+            .padStart(2, '0')}:${(slotEndMinutes % 60).toString().padStart(2, '0')}`
 
-          const hasConflict = member.bookings.some((booking) => {
+          const hasConflict = member.bookings.some(booking => {
             return (
               (timeString >= booking.startTime && timeString < booking.endTime) ||
               (slotEndTime > booking.startTime && slotEndTime <= booking.endTime) ||

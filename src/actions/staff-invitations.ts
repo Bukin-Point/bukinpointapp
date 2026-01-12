@@ -34,41 +34,24 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
       return { error: 'You cannot invite yourself as staff. You are already the provider.' }
     }
 
-    // Check if email belongs to any provider (business owner)
-    const existingProvider = await prisma.provider.findFirst({
-      where: {
-        user: {
-          email: validated.email,
-        },
-      },
-      include: {
-        user: {
-          select: {
-            email: true,
-          },
-        },
-      },
-    })
-
-    if (existingProvider) {
-      return { error: 'This email address belongs to a business owner. Business owners cannot be invited as staff members.' }
-    }
-
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: validated.email },
     })
 
     if (existingUser) {
-      // Check if they're already a staff member for ANY provider
-      const existingStaff = await prisma.staffMember.findFirst({
+      // Check if they're already a staff member
+      const existingStaff = await prisma.staffMember.findUnique({
         where: {
-          userId: existingUser.id,
+          providerId_userId: {
+            providerId: validated.providerId,
+            userId: existingUser.id,
+          },
         },
       })
 
       if (existingStaff) {
-        return { error: 'This user is already a staff member for another provider. Each user can only be associated with one provider.' }
+        return { error: 'This user is already a staff member' }
       }
     }
 
@@ -91,7 +74,7 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
     // Generate unique token
     const token = randomBytes(32).toString('hex')
 
-    // Create invitation record in database (expires in 7 days)
+    // Create invitation (expires in 7 days)
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)
 
@@ -113,8 +96,7 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
       },
     })
 
-    // Send invitation email with Clerk's invitation URL
-    // Clerk sends its own email, but we can send a custom one too
+    // Send invitation email
     const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/signup/staff?token=${token}`
     
     const emailResult = await sendStaffInvitationEmail({
@@ -127,7 +109,8 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
     // Log email result (success or failure)
     if (!emailResult.success) {
       console.error('Failed to send invitation email:', emailResult.error)
-      // Still return success since Clerk invitation is created
+      // Still return success since invitation is created
+      // In production, you might want to handle this differently (e.g., queue for retry)
     }
 
     revalidatePath('/staff')
@@ -253,23 +236,32 @@ export async function createStaffFromInvitation(
         data: { acceptedAt: new Date() },
       })
       // Return success since staff member already exists
-      // Note: revalidatePath removed to avoid render-time errors
-      // Pages will refresh naturally when user navigates
+      revalidatePath('/staff')
+      revalidatePath('/dashboard')
+      revalidatePath('/onboarding')
       return { success: true, staffMember: existing }
     }
 
-    // Check if user is already staff for another provider (should not happen with unique constraint, but check anyway)
-    const existingStaffMembership = await prisma.staffMember.findFirst({
+    // Check if user is already staff for another provider
+    const otherStaffMemberships = await prisma.staffMember.findMany({
       where: {
         userId,
         providerId: { not: invitation.providerId },
       },
+      include: {
+        provider: {
+          select: {
+            businessName: true,
+          },
+        },
+      },
     })
 
-    if (existingStaffMembership) {
-      return { 
-        error: 'You are already a staff member for another provider. Each user can only be associated with one provider.' 
-      }
+    if (otherStaffMemberships.length > 0) {
+      // User is already staff for another provider - this is allowed, but we'll log it
+      console.log(
+        `User ${userId} is already staff for ${otherStaffMemberships.length} other provider(s). Proceeding with invitation acceptance.`
+      )
     }
 
     // Parse service IDs
@@ -310,12 +302,6 @@ export async function createStaffFromInvitation(
         },
       })
 
-      // Mark user as having completed onboarding (staff don't need onboarding)
-      await tx.user.update({
-        where: { id: userId },
-        data: { onboardingCompleted: true },
-      })
-
       // Assign services (only valid ones)
       if (serviceIds.length > 0) {
         await tx.staffService.createMany({
@@ -336,9 +322,8 @@ export async function createStaffFromInvitation(
       return newStaff
     })
 
-    // Note: revalidatePath is called outside the transaction to avoid render-time issues
-    // We'll revalidate in a separate call if needed, but for now we skip it during onboarding
-    // The pages will refresh naturally when the user navigates
+    revalidatePath('/staff')
+    revalidatePath('/signup/staff')
     return { success: true, staffMember }
   } catch (error: any) {
     console.error('Error creating staff from invitation:', error)
@@ -406,54 +391,41 @@ export async function cancelInvitation(invitationId: string) {
 /**
  * Check and accept any pending invitations for a user by email
  * This is called after login to automatically accept invitations
- * Processes ALL pending invitations (not just the first one)
  */
 export async function checkAndAcceptPendingInvitations(userId: string, email: string) {
   try {
-    // Check if user already has a staff membership
-    const existingStaff = await prisma.staffMember.findFirst({
-      where: { userId },
-    })
-
-    if (existingStaff) {
-      return { 
-        success: false, 
-        message: 'User already has a staff membership. Cannot accept additional invitations.' 
-      }
-    }
-
-    // Find the first pending invitation for this email
+    // Find pending or accepted invitations for this email
     const invitation = await prisma.staffInvitation.findFirst({
       where: {
         email,
         expiresAt: { gt: new Date() }, // Not expired
-        acceptedAt: null,
       },
-      orderBy: { createdAt: 'desc' }, // Get most recent first
+      orderBy: { createdAt: 'desc' }, // Get most recent
     })
 
     if (!invitation) {
       return { success: false, message: 'No pending invitation found' }
     }
 
-    // Accept the invitation
-    const result = await acceptInvitationAfterSignup(invitation.token, userId)
-    
-    if (result.staffMember || result.success) {
-      return { 
-        success: true, 
-        message: 'Invitation accepted successfully',
-        processedCount: 1,
-        totalCount: 1
+    // If already accepted, check if staff member exists
+    if (invitation.acceptedAt) {
+      const existingStaff = await prisma.staffMember.findUnique({
+        where: {
+          providerId_userId: {
+            providerId: invitation.providerId,
+            userId,
+          },
+        },
+      })
+
+      if (existingStaff) {
+        return { success: true, message: 'Staff member already exists' }
       }
     }
 
-    return { 
-      success: false, 
-      error: result.error || 'Failed to accept invitation',
-      processedCount: 0,
-      totalCount: 1
-    }
+    // Accept the invitation
+    const result = await acceptInvitationAfterSignup(invitation.token, userId)
+    return result
   } catch (error) {
     console.error('Error checking pending invitations:', error)
     return { error: 'Failed to check pending invitations' }
@@ -473,53 +445,18 @@ export async function acceptInvitationAfterSignup(token: string, userId: string)
     // Get user to verify email matches
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, clerkUserId: true },
     })
 
     if (!user) {
       return { error: 'User not found' }
     }
 
-    // Get Clerk user to check all email addresses
-    let clerkEmails: string[] = []
-    if (user.clerkUserId) {
-      try {
-        const { clerkClient } = await import('@clerk/clerk-sdk-node')
-        const clerkUser = await clerkClient.users.getUser(user.clerkUserId)
-        clerkEmails = clerkUser.emailAddresses.map(e => e.emailAddress.toLowerCase().trim())
-      } catch (error) {
-        console.warn('Could not fetch Clerk user emails:', error)
-      }
-    }
-
-    // Case-insensitive email comparison
-    const userEmailLower = user.email.toLowerCase().trim()
-    const invitationEmailLower = invitation.email.toLowerCase().trim()
-    
-    // Check if invitation email matches user email or any of their Clerk email addresses
-    const emailMatches = 
-      userEmailLower === invitationEmailLower ||
-      clerkEmails.includes(invitationEmailLower)
-    
-    if (!emailMatches) {
-      console.error('Email mismatch:', {
-        invitationEmail: invitation.email,
-        userEmail: user.email,
-        clerkEmails,
-        invitationEmailLower,
-        userEmailLower,
-        userId,
-        clerkUserId: user.clerkUserId,
-        invitationId: invitation.id,
-      })
-      return { 
-        error: `Email does not match invitation. The invitation was sent to "${invitation.email}", but your account is registered with "${user.email}". Please sign up or sign in using the email address that received the invitation.` 
-      }
+    if (user.email !== invitation.email) {
+      return { error: 'Email does not match invitation' }
     }
 
     // Create staff member from invitation
     const result = await createStaffFromInvitation(invitation, userId)
-    
     return result
   } catch (error) {
     console.error('Error accepting invitation after signup:', error)

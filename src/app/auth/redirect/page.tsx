@@ -22,7 +22,6 @@ export default async function AuthRedirectPage({
   }
 
   // Handle different signup flows - CHECK FLOW FIRST before other logic
-  // Use server-side redirect() for immediate redirect without client-side delay
   if (flow === 'provider-signup') {
     // IMPORTANT: Before redirecting to onboarding, check if user has pending staff invitations
     // If they do, accept them and redirect to dashboard instead
@@ -57,19 +56,43 @@ export default async function AuthRedirectPage({
 
     // No pending invitation - proceed with provider onboarding
     redirect('/onboarding?flow=provider-signup')
-  } else if (flow === 'customer-signup') {
-    redirect('/customer/dashboard?flow=customer-signup')
   } else if (flow === 'staff-signup') {
     redirect('/dashboard')
   }
 
-  // For signin or no flow specified, get redirect URL based on user state
+  // For signin, check for pending invitations first
+  try {
+    const { prisma } = await import('@/lib/db')
+    const pendingInvitation = await prisma.staffInvitation.findFirst({
+      where: {
+        email: session.user.email,
+        expiresAt: { gt: new Date() },
+        acceptedAt: null,
+      },
+      select: { id: true, token: true, providerId: true },
+    })
+
+    if (pendingInvitation) {
+      // User has pending invitation - accept it
+      const { checkAndAcceptPendingInvitations } = await import('@/actions/staff-invitations')
+      await Promise.race([
+        checkAndAcceptPendingInvitations(session.user.id, session.user.email || ''),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000)),
+      ])
+
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+  } catch (error) {
+    console.warn('Error checking invitations:', error)
+  }
+
+  // Get redirect URL based on user state (provider/staff/customer)
   const redirectUrl = await getPostSigninRedirectUrl()
 
   if (redirectUrl) {
     redirect(redirectUrl)
   }
 
-  // Fallback
+  // Fallback to dashboard
   redirect('/dashboard')
 }
