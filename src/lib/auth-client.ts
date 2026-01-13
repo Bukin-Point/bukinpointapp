@@ -43,7 +43,8 @@ export function useSignUpClient() {
         await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
         if (callbacks?.onSuccess) callbacks.onSuccess()
       } catch (error: any) {
-        const firstError = Array.isArray(error.errors) ? error.errors[0] : undefined
+        const errors = (error?.errors && Array.isArray(error.errors)) ? error.errors : []
+        const firstError = errors[0]
         const derivedData =
           error.data ??
           (firstError?.meta?.paramName
@@ -53,7 +54,7 @@ export function useSignUpClient() {
         if (callbacks?.onError) {
           callbacks.onError({
             error: {
-              message: error.errors?.[0]?.message || error.message || 'Sign up failed',
+              message: firstError?.message || error.message || 'Sign up failed',
               status: error.status,
               data: derivedData,
             },
@@ -98,9 +99,11 @@ export function useSignInClient() {
         if (callbacks?.onSuccess) callbacks.onSuccess()
       } catch (error: any) {
         if (callbacks?.onError) {
+          const errors = (error?.errors && Array.isArray(error.errors)) ? error.errors : []
+          const firstError = errors[0]
           callbacks.onError({
             error: {
-              message: error.errors?.[0]?.message || error.message || 'Sign in failed',
+              message: firstError?.message || error.message || 'Sign in failed',
               status: error.status,
             },
           })
