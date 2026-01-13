@@ -2,22 +2,27 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Provider, Service, StaffMember } from '@prisma/client'
+import { Provider, StaffMember } from '@prisma/client'
 import { ServiceSelector } from './service-selector'
 import { TimePicker } from './time-picker'
 import { CustomerForm } from './customer-form'
 import { createBooking } from '@/app/book/[providerId]/actions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+// Serialized Service type with price as number instead of Decimal
+type SerializedService = Omit<import('@prisma/client').Service, 'price'> & {
+  price: number
+}
+
 type ProviderWithRelations = Provider & {
-  services: Service[]
+  services: SerializedService[]
   staff: (StaffMember & {
     user: {
       name: string | null
       email: string
     }
     services: Array<{
-      service: Service
+      service: SerializedService
     }>
   })[]
 }
@@ -38,14 +43,14 @@ type BookingStep = 'service' | 'time' | 'customer' | 'confirming'
 export function BookingFlow({ provider, session }: BookingFlowProps) {
   const router = useRouter()
   const [step, setStep] = useState<BookingStep>('service')
-  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  const [selectedService, setSelectedService] = useState<SerializedService | null>(null)
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleServiceSelect = (service: Service) => {
+  const handleServiceSelect = (service: SerializedService) => {
     setSelectedService(service)
     // Find staff members who can provide this service
     const availableStaff = provider.staff.filter((staff) =>

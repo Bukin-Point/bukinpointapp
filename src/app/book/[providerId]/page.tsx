@@ -50,6 +50,25 @@ export default async function PublicBookingPage({
     notFound()
   }
 
+  // Serialize Decimal fields to numbers for client component
+  const serializedProvider = {
+    ...provider,
+    services: provider.services.map(service => ({
+      ...service,
+      price: Number(service.price),
+    })),
+    staff: provider.staff.map(staff => ({
+      ...staff,
+      services: staff.services.map(staffService => ({
+        ...staffService,
+        service: {
+          ...staffService.service,
+          price: Number(staffService.service.price),
+        },
+      })),
+    })),
+  }
+
   return (
     <div className="min-h-screen bg-surface py-8">
       <div className="container mx-auto px-4">
@@ -58,7 +77,7 @@ export default async function PublicBookingPage({
             <h1 className="text-h1 mb-2">Book with {provider.businessName}</h1>
             <p className="text-body-sm text-text-secondary">{provider.industry}</p>
           </div>
-          <BookingFlow provider={provider} session={session} />
+          <BookingFlow provider={serializedProvider} session={session} />
         </div>
       </div>
     </div>

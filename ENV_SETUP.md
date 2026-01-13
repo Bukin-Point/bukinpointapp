@@ -224,6 +224,46 @@ RESEND_FROM_EMAIL="BukinPoint <noreply@yourdomain.com>"
 5. Once verified, you can use ANY email address on that domain (e.g., `onboarding@bukinpoint.com`, `bookings@bukinpoint.com`, `noreply@bukinpoint.com`)
 6. **Important**: You don't need to create actual email inboxes - Resend handles the sending, you just need the domain verified
 
+### DEV_EMAIL (Optional - Development Only)
+
+**What it is:**
+In development mode, all emails are redirected to this address instead of the actual recipient. This prevents accidentally sending test emails to real users.
+
+**Development:**
+```env
+DEV_EMAIL="your-dev-email@gmail.com"
+```
+
+**Default:**
+If not set, defaults to `sholajapheth@gmail.com`
+
+**Note:**
+- Only used when `NODE_ENV=development` AND `ALLOW_REAL_EMAILS` is not set to `true`
+- In production, this variable is ignored
+
+### ALLOW_REAL_EMAILS (Optional - Development Only)
+
+**What it is:**
+When set to `true`, allows sending emails to real recipients even in development mode. This bypasses the dev email redirect.
+
+**Development:**
+```env
+ALLOW_REAL_EMAILS="true"
+```
+
+**Use Cases:**
+- Testing email delivery to real addresses
+- Verifying Resend domain configuration
+- Testing email templates with actual recipients
+
+**Warning:**
+- Only use this when you want to send emails to real addresses
+- Make sure your Resend domain is verified before enabling
+- Remove or set to `false` after testing
+
+**Default:**
+If not set, defaults to `false` (emails redirect to `DEV_EMAIL` in development)
+
 ---
 
 ## Image Storage (Cloudflare R2)

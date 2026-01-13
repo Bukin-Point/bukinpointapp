@@ -1,15 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { Service } from '@prisma/client'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { format } from 'date-fns'
 
+// Serialized Service type with price as number instead of Decimal
+type SerializedService = Omit<import('@prisma/client').Service, 'price'> & {
+  price: number
+}
+
 interface CustomerFormProps {
-  service: Service
+  service: SerializedService
   date: Date
   time: string
   onSubmit: (data: {
@@ -36,6 +40,7 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading, s
     email: session?.user?.email || '',
     notes: '',
   })
+  const [consentAccepted, setConsentAccepted] = useState(false)
   const [error, setError] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -44,6 +49,11 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading, s
 
     if (!formData.name || !formData.phone) {
       setError('Name and phone number are required')
+      return
+    }
+
+    if (!consentAccepted) {
+      setError('Please accept the terms and conditions to continue')
       return
     }
 
@@ -80,7 +90,7 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading, s
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Price:</span>
-                <span className="font-medium">₦{Number(service.price).toLocaleString()}</span>
+                <span className="font-medium">₦{service.price.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -165,12 +175,36 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading, s
               className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(e) => setConsentAccepted(e.target.checked)}
+                disabled={loading}
+                required
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <span className="text-body-sm text-text-secondary group-hover:text-text">
+                I agree to the{' '}
+                <Link href="/terms" target="_blank" className="text-primary underline hover:no-underline">
+                  Terms and Conditions
+                </Link>
+                {' '}and{' '}
+                <Link href="/privacy" target="_blank" className="text-primary underline hover:no-underline">
+                  Privacy Policy
+                </Link>
+                {' '}*
+              </span>
+            </label>
+          </div>
         </CardContent>
         <CardFooter className="flex gap-2">
           <Button type="button" variant="outline" onClick={onBack} disabled={loading}>
             Back
           </Button>
-          <Button type="submit" disabled={loading} className="flex-1">
+          <Button type="submit" disabled={loading || !consentAccepted} className="flex-1">
             {loading ? 'Processing...' : 'Complete Booking'}
           </Button>
         </CardFooter>

@@ -1,11 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Provider, Service, StaffMember } from '@prisma/client'
+import { Provider, StaffMember } from '@prisma/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns'
 import { getAvailableSlots } from '@/app/book/[providerId]/actions'
+
+// Serialized Service type with price as number instead of Decimal
+type SerializedService = Omit<import('@prisma/client').Service, 'price'> & {
+  price: number
+}
 
 type ProviderWithRelations = Provider & {
   staff: (StaffMember & {
@@ -14,14 +19,14 @@ type ProviderWithRelations = Provider & {
       email: string
     }
     services: Array<{
-      service: Service
+      service: SerializedService
     }>
   })[]
 }
 
 interface TimePickerProps {
   provider: ProviderWithRelations
-  service: Service
+  service: SerializedService
   selectedStaff: StaffMember | null
   onSelect: (date: Date, time: string, staff: StaffMember) => void
   onBack: () => void

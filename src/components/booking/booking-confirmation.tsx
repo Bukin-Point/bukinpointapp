@@ -1,8 +1,10 @@
 import { Booking } from '@prisma/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, Home } from 'lucide-react'
+import Link from 'next/link'
 
 type BookingWithRelations = Booking & {
   service: {
@@ -83,6 +85,15 @@ export function BookingConfirmation({ booking }: { booking: BookingWithRelations
             </div>
           </CardContent>
         </Card>
+
+        <div className="mt-6 text-center">
+          <Link href="/">
+            <Button variant="default" className="gap-2">
+              <Home className="h-4 w-4" />
+              Go Back Home
+            </Button>
+          </Link>
+        </div>
       </div>
     </div>
   )
