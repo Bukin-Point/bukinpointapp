@@ -12,15 +12,12 @@ export default async function CustomerDashboardPage() {
     redirect('/signin')
   }
 
-  // Link any existing bookings by email (don't await to avoid blocking render)
-  // This will run in the background
+  // Link any existing bookings by email synchronously before fetching
   if (session.user.email) {
-    linkBookingsToAccount(session.user.id, session.user.email).catch((err) => {
-      console.error('Error linking bookings:', err)
-    })
+    await linkBookingsToAccount(session.user.id, session.user.email)
   }
 
-  const bookingsResult = await getCustomerBookings(session.user.id)
+  const bookingsResult = await getCustomerBookings(session.user.id, session.user.email)
   const bookings = bookingsResult.bookings || []
 
   // Separate upcoming and past bookings

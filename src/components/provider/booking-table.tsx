@@ -5,16 +5,18 @@ import { Booking } from '@prisma/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { format } from 'date-fns'
 import {
   MoreVertical,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Eye,
   CheckCircle,
   XCircle,
+  Clock,
+  Calendar,
+  Ban,
 } from 'lucide-react'
+import { format } from 'date-fns'
 
 type BookingWithRelations = Booking & {
   service: {
@@ -22,6 +24,7 @@ type BookingWithRelations = Booking & {
     name: string
   }
   staff: {
+    id: string
     user: {
       name: string | null
       email: string
@@ -31,10 +34,14 @@ type BookingWithRelations = Booking & {
 
 interface BookingTableProps {
   bookings: BookingWithRelations[]
-  onViewDetails: (booking: BookingWithRelations) => void
   onStatusUpdate: (bookingId: string, newStatus: Booking['status']) => void
+  onCancel?: (bookingId: string) => void
+  onReschedule?: (booking: BookingWithRelations) => void
   loading?: string | null
 }
+
+type SortField = 'customerName' | 'service' | 'date' | 'status' | null
+type SortDirection = 'asc' | 'desc'
 
 const STATUS_COLORS = {
   PENDING: 'bg-warning-light text-warning',
@@ -44,13 +51,11 @@ const STATUS_COLORS = {
   NO_SHOW: 'bg-error-light text-error',
 }
 
-type SortField = 'date' | 'customer' | 'status' | null
-type SortDirection = 'asc' | 'desc'
-
 export function BookingTable({
   bookings,
-  onViewDetails,
   onStatusUpdate,
+  onCancel,
+  onReschedule,
   loading,
 }: BookingTableProps) {
   const [sortField, setSortField] = useState<SortField>('date')
@@ -64,12 +69,14 @@ export function BookingTable({
       let comparison = 0
 
       switch (sortField) {
-        case 'date':
-          comparison =
-            new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime()
-          break
-        case 'customer':
+        case 'customerName':
           comparison = a.customerName.localeCompare(b.customerName)
+          break
+        case 'service':
+          comparison = a.service.name.localeCompare(b.service.name)
+          break
+        case 'date':
+          comparison = new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime()
           break
         case 'status':
           comparison = a.status.localeCompare(b.status)
@@ -87,7 +94,7 @@ export function BookingTable({
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
       setSortField(field)
-      setSortDirection('desc')
+      setSortDirection('asc')
     }
   }
 
@@ -112,6 +119,60 @@ export function BookingTable({
     )
   }
 
+  const getStatusActions = (booking: BookingWithRelations) => {
+    const actions: Array<{ label: string; status: Booking['status']; icon: React.ReactNode; variant?: 'default' | 'destructive'; type: 'status' | 'cancel' | 'reschedule' }> = []
+    
+    // Add cancel and reschedule for pending/confirmed bookings
+    if (booking.status === 'PENDING' || booking.status === 'CONFIRMED') {
+      if (onReschedule) {
+        actions.push({
+          label: 'Reschedule',
+          status: booking.status,
+          icon: <Calendar className="mr-2 h-4 w-4" />,
+          type: 'reschedule',
+        })
+      }
+      if (onCancel) {
+        actions.push({
+          label: 'Cancel',
+          status: 'CANCELLED',
+          icon: <Ban className="mr-2 h-4 w-4" />,
+          variant: 'destructive',
+          type: 'cancel',
+        })
+      }
+    }
+    
+    if (booking.status === 'PENDING') {
+      actions.push(
+        {
+          label: 'Confirm',
+          status: 'CONFIRMED',
+          icon: <CheckCircle className="mr-2 h-4 w-4" />,
+          type: 'status',
+        }
+      )
+    } else if (booking.status === 'CONFIRMED') {
+      actions.push(
+        {
+          label: 'Mark Completed',
+          status: 'COMPLETED',
+          icon: <CheckCircle className="mr-2 h-4 w-4" />,
+          type: 'status',
+        },
+        {
+          label: 'No Show',
+          status: 'NO_SHOW',
+          icon: <XCircle className="mr-2 h-4 w-4" />,
+          variant: 'destructive',
+          type: 'status',
+        }
+      )
+    }
+
+    return actions
+  }
+
   if (bookings.length === 0) {
     return (
       <div className="border rounded-lg p-12 text-center">
@@ -127,13 +188,19 @@ export function BookingTable({
           <thead className="bg-muted/50 border-b">
             <tr>
               <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
-                <SortButton field="date">Date & Time</SortButton>
+                <SortButton field="date">Date</SortButton>
               </th>
               <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
-                <SortButton field="customer">Customer</SortButton>
+                Time
+              </th>
+              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
+                <SortButton field="service">Service</SortButton>
+              </th>
+              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
+                <SortButton field="customerName">Customer</SortButton>
               </th>
               <th className="text-left p-3 text-body-sm font-semibold text-text-secondary hidden md:table-cell whitespace-nowrap">
-                Service
+                Phone
               </th>
               <th className="text-left p-3 text-body-sm font-semibold text-text-secondary hidden lg:table-cell whitespace-nowrap">
                 Staff
@@ -148,139 +215,99 @@ export function BookingTable({
           </thead>
           <tbody>
             {sortedBookings.map((booking) => {
-              const formattedDate = format(new Date(booking.bookingDate), 'MMM dd, yyyy')
-              const formattedTime = `${booking.startTime} - ${booking.endTime}`
               const isActionMenuOpen = openActionMenu === booking.id
+              const statusActions = getStatusActions(booking)
 
               return (
                 <tr
                   key={booking.id}
-                  className="border-b hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => onViewDetails(booking)}
+                  className="border-b hover:bg-muted/30 transition-colors"
                 >
                   <td className="p-3 text-body-sm">
-                    <div className="flex flex-col">
-                      <span className="font-medium">{formattedDate}</span>
-                      <span className="text-text-secondary text-caption">{formattedTime}</span>
+                    <span>{format(new Date(booking.bookingDate), 'MMM dd, yyyy')}</span>
+                  </td>
+                  <td className="p-3 text-body-sm">
+                    <span>{booking.startTime} - {booking.endTime}</span>
+                  </td>
+                  <td className="p-3 text-body-sm">
+                    <span className="font-medium">{booking.service.name}</span>
+                    <div className="text-caption text-text-secondary mt-0.5">
+                      Ref: {booking.bookingRef}
                     </div>
                   </td>
                   <td className="p-3 text-body-sm">
-                    <div className="flex flex-col">
-                      <span className="font-medium">{booking.customerName}</span>
-                      <span className="text-text-secondary text-caption">{booking.customerPhone}</span>
-                    </div>
+                    <span className="font-medium">{booking.customerName}</span>
+                    {booking.customerEmail && (
+                      <div className="text-caption text-text-secondary mt-0.5">
+                        {booking.customerEmail}
+                      </div>
+                    )}
                   </td>
                   <td className="p-3 text-body-sm hidden md:table-cell">
-                    <span>{booking.service.name}</span>
+                    <span>{booking.customerPhone}</span>
                   </td>
                   <td className="p-3 text-body-sm hidden lg:table-cell">
-                    <span className="text-text-secondary">
-                      {booking.staff.user.name || booking.staff.user.email}
-                    </span>
+                    <span>{booking.staff.user.name || booking.staff.user.email}</span>
                   </td>
                   <td className="p-3">
-                    <Badge className={STATUS_COLORS[booking.status]}>{booking.status}</Badge>
+                    <Badge className={STATUS_COLORS[booking.status]}>
+                      {booking.status}
+                    </Badge>
                   </td>
                   <td className="p-3">
                     <div className="flex justify-end">
-                      <Popover
-                        open={isActionMenuOpen}
-                        onOpenChange={(open) => setOpenActionMenu(open ? booking.id : null)}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                            }}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                            <span className="sr-only">Open menu</span>
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          className="w-48 p-1"
-                          align="end"
-                          onClick={(e) => e.stopPropagation()}
+                      {statusActions.length > 0 ? (
+                        <Popover
+                          open={isActionMenuOpen}
+                          onOpenChange={(open) => setOpenActionMenu(open ? booking.id : null)}
                         >
-                          <div className="space-y-1">
+                          <PopoverTrigger asChild>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="w-full justify-start"
-                              onClick={() => {
-                                onViewDetails(booking)
-                                setOpenActionMenu(null)
-                              }}
+                              className="h-8 w-8 p-0"
                             >
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Details
+                              <MoreVertical className="h-4 w-4" />
+                              <span className="sr-only">Open menu</span>
                             </Button>
-                            {booking.status === 'PENDING' && (
-                              <>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-48 p-1"
+                            align="end"
+                          >
+                            <div className="space-y-1">
+                              {statusActions.map((action, index) => (
                                 <Button
+                                  key={`${action.type}-${action.status}-${index}`}
                                   variant="ghost"
                                   size="sm"
-                                  className="w-full justify-start"
+                                  className={`w-full justify-start ${
+                                    action.variant === 'destructive'
+                                      ? 'text-destructive hover:text-destructive'
+                                      : ''
+                                  }`}
                                   onClick={() => {
-                                    onStatusUpdate(booking.id, 'CONFIRMED')
+                                    if (action.type === 'status') {
+                                      onStatusUpdate(booking.id, action.status)
+                                    } else if (action.type === 'cancel' && onCancel) {
+                                      onCancel(booking.id)
+                                    } else if (action.type === 'reschedule' && onReschedule) {
+                                      onReschedule(booking)
+                                    }
                                     setOpenActionMenu(null)
                                   }}
                                   disabled={loading === booking.id}
                                 >
-                                  <CheckCircle className="mr-2 h-4 w-4" />
-                                  Confirm
+                                  {action.icon}
+                                  {action.label}
                                 </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="w-full justify-start text-destructive hover:text-destructive"
-                                  onClick={() => {
-                                    onStatusUpdate(booking.id, 'CANCELLED')
-                                    setOpenActionMenu(null)
-                                  }}
-                                  disabled={loading === booking.id}
-                                >
-                                  <XCircle className="mr-2 h-4 w-4" />
-                                  Cancel
-                                </Button>
-                              </>
-                            )}
-                            {booking.status === 'CONFIRMED' && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="w-full justify-start"
-                                  onClick={() => {
-                                    onStatusUpdate(booking.id, 'COMPLETED')
-                                    setOpenActionMenu(null)
-                                  }}
-                                  disabled={loading === booking.id}
-                                >
-                                  <CheckCircle className="mr-2 h-4 w-4" />
-                                  Mark Completed
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="w-full justify-start text-destructive hover:text-destructive"
-                                  onClick={() => {
-                                    onStatusUpdate(booking.id, 'NO_SHOW')
-                                    setOpenActionMenu(null)
-                                  }}
-                                  disabled={loading === booking.id}
-                                >
-                                  <XCircle className="mr-2 h-4 w-4" />
-                                  No Show
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="text-caption text-text-secondary">—</span>
+                      )}
                     </div>
                   </td>
                 </tr>

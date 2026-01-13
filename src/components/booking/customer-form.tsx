@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,17 +31,25 @@ interface CustomerFormProps {
       email: string
     }
   } | null
+  userPhone?: string | null
 }
 
-export function CustomerForm({ service, date, time, onSubmit, onBack, loading, session }: CustomerFormProps) {
+export function CustomerForm({ service, date, time, onSubmit, onBack, loading, session, userPhone }: CustomerFormProps) {
   const [formData, setFormData] = useState({
     name: session?.user?.name || '',
-    phone: '',
+    phone: userPhone || '',
     email: session?.user?.email || '',
     notes: '',
   })
   const [consentAccepted, setConsentAccepted] = useState(false)
   const [error, setError] = useState('')
+
+  // Update phone when userPhone changes
+  useEffect(() => {
+    if (userPhone && !formData.phone) {
+      setFormData(prev => ({ ...prev, phone: userPhone }))
+    }
+  }, [userPhone])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

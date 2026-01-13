@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { StaffMember, Availability } from '@prisma/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AvailabilityForm } from '@/components/provider/availability-form'
+import { BulkAvailabilityForm } from '@/components/provider/bulk-availability-form'
+import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 
 type StaffWithAvailability = StaffMember & {
@@ -37,6 +39,7 @@ export function AvailabilityManager({ staff, providerId, timezone, canManage = t
     staff[0] || null
   )
   const [showForm, setShowForm] = useState(false)
+  const [formMode, setFormMode] = useState<'single' | 'bulk'>('bulk')
 
   if (staff.length === 0) {
     return (
@@ -90,26 +93,53 @@ export function AvailabilityManager({ staff, providerId, timezone, canManage = t
 
       {selectedStaff && (
         <>
-          <div className="flex justify-end">
-            <button
-              onClick={() => setShowForm(true)}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-600"
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFormMode('bulk')
+                setShowForm(true)
+              }}
             >
-              Add Availability
-            </button>
+              Add Bulk Availability
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFormMode('single')
+                setShowForm(true)
+              }}
+            >
+              Add Single Day
+            </Button>
           </div>
 
           {showForm && (
-            <AvailabilityForm
-              staffId={selectedStaff.id}
-              providerId={providerId}
-              existingAvailability={selectedStaff.availability}
-              onSuccess={() => {
-                setShowForm(false)
-                window.location.reload()
-              }}
-              onCancel={() => setShowForm(false)}
-            />
+            <>
+              {formMode === 'bulk' ? (
+                <BulkAvailabilityForm
+                  staffId={selectedStaff.id}
+                  providerId={providerId}
+                  existingAvailability={selectedStaff.availability}
+                  onSuccess={() => {
+                    setShowForm(false)
+                    window.location.reload()
+                  }}
+                  onCancel={() => setShowForm(false)}
+                />
+              ) : (
+                <AvailabilityForm
+                  staffId={selectedStaff.id}
+                  providerId={providerId}
+                  existingAvailability={selectedStaff.availability}
+                  onSuccess={() => {
+                    setShowForm(false)
+                    window.location.reload()
+                  }}
+                  onCancel={() => setShowForm(false)}
+                />
+              )}
+            </>
           )}
 
           <Card>

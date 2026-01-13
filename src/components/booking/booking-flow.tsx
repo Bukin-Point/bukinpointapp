@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Provider, StaffMember } from '@prisma/client'
 import { ServiceSelector } from './service-selector'
@@ -36,11 +36,13 @@ interface BookingFlowProps {
       email: string
     }
   } | null
+  initialServiceId?: string
+  userPhone?: string | null
 }
 
 type BookingStep = 'service' | 'time' | 'customer' | 'confirming'
 
-export function BookingFlow({ provider, session }: BookingFlowProps) {
+export function BookingFlow({ provider, session, initialServiceId, userPhone }: BookingFlowProps) {
   const router = useRouter()
   const [step, setStep] = useState<BookingStep>('service')
   const [selectedService, setSelectedService] = useState<SerializedService | null>(null)
@@ -50,7 +52,31 @@ export function BookingFlow({ provider, session }: BookingFlowProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Auto-select service if initialServiceId is provided
+  useEffect(() => {
+    if (initialServiceId && !selectedService) {
+      const service = provider.services.find(s => s.id === initialServiceId)
+      if (service) {
+        setSelectedService(service)
+        // Find staff who can provide this service
+        const availableStaff = provider.staff.filter((staff) =>
+          staff.services.some((ss) => ss.service.id === service.id)
+        )
+        if (availableStaff.length > 0) {
+          setSelectedStaff(availableStaff[0])
+        }
+        setStep('time')
+      }
+    }
+  }, [initialServiceId, provider.services, provider.staff, selectedService])
+
+  // Clear error when step changes
+  useEffect(() => {
+    setError('')
+  }, [step])
+
   const handleServiceSelect = (service: SerializedService) => {
+    setError('')
     setSelectedService(service)
     // Find staff members who can provide this service
     const availableStaff = provider.staff.filter((staff) =>
@@ -63,6 +89,7 @@ export function BookingFlow({ provider, session }: BookingFlowProps) {
   }
 
   const handleTimeSelect = (date: Date, time: string, staff: StaffMember) => {
+    setError('')
     setSelectedDate(date)
     setSelectedTime(time)
     setSelectedStaff(staff)
@@ -139,7 +166,10 @@ export function BookingFlow({ provider, session }: BookingFlowProps) {
           service={selectedService}
           selectedStaff={selectedStaff}
           onSelect={handleTimeSelect}
-          onBack={() => setStep('service')}
+          onBack={() => {
+            setError('')
+            setStep('service')
+          }}
         />
       )}
 
@@ -149,9 +179,13 @@ export function BookingFlow({ provider, session }: BookingFlowProps) {
           date={selectedDate}
           time={selectedTime}
           onSubmit={handleCustomerSubmit}
-          onBack={() => setStep('time')}
+          onBack={() => {
+            setError('')
+            setStep('time')
+          }}
           loading={loading}
           session={session}
+          userPhone={userPhone}
         />
       )}
     </div>

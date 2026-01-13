@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { Bell, Menu, X, User, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -37,9 +38,15 @@ export function DashboardHeader({
   const { user, signOut } = useClerk()
   const userIsStaff = isStaff(accessContext)
   const industry = accessContext.provider.industry
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Get user initials for avatar fallback
   const getUserInitials = () => {
+    if (!mounted || !user) return 'U'
     if (user?.firstName && user?.lastName) {
       return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
     }
@@ -50,6 +57,12 @@ export function DashboardHeader({
       return user.emailAddresses[0].emailAddress[0].toUpperCase()
     }
     return 'U'
+  }
+
+  // Get user display name - prevent hydration mismatch
+  const getUserDisplayName = () => {
+    if (!mounted || !user) return 'User'
+    return user?.firstName || user?.emailAddresses[0]?.emailAddress || 'User'
   }
 
   return (
@@ -116,7 +129,7 @@ export function DashboardHeader({
                 )}
                 <div className="hidden sm:flex flex-col items-start min-w-0">
                   <span className="text-body-sm font-medium truncate max-w-[120px]">
-                    {user?.firstName || user?.emailAddresses[0]?.emailAddress || 'User'}
+                    {getUserDisplayName()}
                   </span>
                   <Badge variant="outline" className="text-xs mt-0.5">
                     {userIsStaff ? 'Staff' : 'Provider'}
@@ -125,10 +138,7 @@ export function DashboardHeader({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem
-                onClick={() => router.push('/profile')}
-                className="cursor-pointer"
-              >
+              <DropdownMenuItem onClick={() => router.push('/profile')} className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>

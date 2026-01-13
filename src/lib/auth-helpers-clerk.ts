@@ -21,30 +21,95 @@ export async function getSession() {
   }
 
   // Find or create user in database linked to Clerk user
-  const dbUser = await prisma.user.upsert({
-    where: { clerkUserId: userId },
-    create: {
-      clerkUserId: userId,
-      email: user.primaryEmailAddress?.emailAddress || '',
-      emailVerified: user.emailAddresses[0]?.verification?.status === 'verified',
-      name: user.fullName || user.firstName || null,
-      image: user.imageUrl || null,
-    },
-    update: {
-      email: user.primaryEmailAddress?.emailAddress || '',
-      emailVerified: user.emailAddresses[0]?.verification?.status === 'verified',
-      name: user.fullName || user.firstName || null,
-      image: user.imageUrl || null,
-    },
-  })
+  // Handle case where phone column doesn't exist yet in database
+  try {
+    const dbUser = await prisma.user.upsert({
+      where: { clerkUserId: userId },
+      create: {
+        clerkUserId: userId,
+        email: user.primaryEmailAddress?.emailAddress || '',
+        emailVerified: user.emailAddresses[0]?.verification?.status === 'verified',
+        name: user.fullName || user.firstName || null,
+        image: user.imageUrl || null,
+      },
+      update: {
+        email: user.primaryEmailAddress?.emailAddress || '',
+        emailVerified: user.emailAddresses[0]?.verification?.status === 'verified',
+        name: user.fullName || user.firstName || null,
+        image: user.imageUrl || null,
+      },
+    })
 
-  return {
-    user: {
-      id: dbUser.id,
-      email: dbUser.email,
-      name: dbUser.name,
-      image: dbUser.image,
-    },
+    return {
+      user: {
+        id: dbUser.id,
+        email: dbUser.email,
+        name: dbUser.name,
+        image: dbUser.image,
+      },
+    }
+  } catch (error: any) {
+    // If phone column doesn't exist, try to find existing user or create with raw query
+    if (error?.message?.includes('column') || error?.code === 'P2021') {
+      // Try to find existing user first
+      const existingUser = await prisma.user.findUnique({
+        where: { clerkUserId: userId },
+      })
+
+      if (existingUser) {
+        // Update if needed (without phone field)
+        const updatedUser = await prisma.user.update({
+          where: { clerkUserId: userId },
+          data: {
+            email: user.primaryEmailAddress?.emailAddress || '',
+            emailVerified: user.emailAddresses[0]?.verification?.status === 'verified',
+            name: user.fullName || user.firstName || null,
+            image: user.imageUrl || null,
+          },
+        })
+
+        return {
+          user: {
+            id: updatedUser.id,
+            email: updatedUser.email,
+            name: updatedUser.name,
+            image: updatedUser.image,
+          },
+        }
+      }
+
+      // Create new user using raw query to avoid phone field
+      const result = await prisma.$executeRaw`
+        INSERT INTO "user" (id, "clerkUserId", email, "emailVerified", name, image, "createdAt", "updatedAt")
+        VALUES (gen_random_uuid()::text, ${userId}, ${user.primaryEmailAddress?.emailAddress || ''}, ${user.emailAddresses[0]?.verification?.status === 'verified'}, ${user.fullName || user.firstName || null}, ${user.imageUrl || null}, NOW(), NOW())
+        ON CONFLICT ("clerkUserId") DO UPDATE SET
+          email = EXCLUDED.email,
+          "emailVerified" = EXCLUDED."emailVerified",
+          name = EXCLUDED.name,
+          image = EXCLUDED.image,
+          "updatedAt" = NOW()
+        RETURNING id, email, name, image
+      `
+
+      // Fetch the created/updated user
+      const newUser = await prisma.user.findUnique({
+        where: { clerkUserId: userId },
+      })
+
+      if (!newUser) {
+        throw new Error('Failed to create or find user')
+      }
+
+      return {
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          name: newUser.name,
+          image: newUser.image,
+        },
+      }
+    }
+    throw error
   }
 }
 

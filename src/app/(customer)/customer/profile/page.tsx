@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { prisma } from '@/lib/db'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ProfileForm } from '@/components/customer/profile-form'
 
 export default async function CustomerProfilePage() {
   const session = await getSession()
@@ -12,7 +12,16 @@ export default async function CustomerProfilePage() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      createdAt: true,
+    },
   })
+  
+  // Phone field is not yet in database - will be null until migration runs
+  const phone: string | null = null
 
   if (!user) {
     redirect('/signin')
@@ -27,34 +36,12 @@ export default async function CustomerProfilePage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Account Information</CardTitle>
-          <CardDescription>Your profile details</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <label className="text-body-sm font-medium text-text-secondary">Name</label>
-              <p className="text-body-sm mt-1">{user.name || 'Not set'}</p>
-            </div>
-            <div>
-              <label className="text-body-sm font-medium text-text-secondary">Email</label>
-              <p className="text-body-sm mt-1">{user.email}</p>
-            </div>
-            <div>
-              <label className="text-body-sm font-medium text-text-secondary">Member Since</label>
-              <p className="text-body-sm mt-1">
-                {new Date(user.createdAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <ProfileForm
+        userId={user.id}
+        initialName={user.name}
+        initialEmail={user.email}
+        initialPhone={phone}
+      />
     </div>
   )
 }

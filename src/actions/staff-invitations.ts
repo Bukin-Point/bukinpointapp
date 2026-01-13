@@ -322,8 +322,8 @@ export async function createStaffFromInvitation(
       return newStaff
     })
 
-    revalidatePath('/staff')
-    revalidatePath('/signup/staff')
+    // Note: revalidatePath removed - cannot be called during render.
+    // Pages will be revalidated on next request after redirect.
     return { success: true, staffMember }
   } catch (error: any) {
     console.error('Error creating staff from invitation:', error)

@@ -16,6 +16,7 @@ model User {
   email         String   @unique
   emailVerified Boolean  @default(false)
   name          String?
+  // phone         String?  // Optional phone number for customers - uncomment after migration
   image         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

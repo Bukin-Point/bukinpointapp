@@ -103,14 +103,14 @@ export function ProviderNav({
   return (
     <>
       {/* Mobile Menu Button */}
-      <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b bg-card p-4 lg:hidden">
+      {/* <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b bg-card p-4 lg:hidden">
         <div className="flex-1 min-w-0 mr-2">
           <ProviderSelector userId={userId} />
         </div>
         <Button variant="ghost" size="icon" onClick={toggleMobileMenu} aria-label="Toggle menu">
           {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
         </Button>
-      </div>
+      </div> */}
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (

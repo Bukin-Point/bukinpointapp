@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
-import { lockSlot, releaseSlot } from '@/lib/redis'
+import { lockSlot, releaseSlot, getCachedSlots, setCachedSlots, invalidateSlotCache } from '@/lib/redis'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import {
   sendBookingConfirmationEmail,
@@ -187,6 +187,16 @@ export async function getAvailableSlots(data: {
 }) {
   try {
     const date = new Date(data.date)
+    const dateStr = date.toISOString().split('T')[0]
+    const cacheKey = `slots:${data.providerId}:${data.serviceId}:${dateStr}`
+    const cacheTtl = 10 * 60 // 10 minutes
+
+    // Check Redis cache first
+    const cachedSlots = await getCachedSlots(cacheKey)
+    if (cachedSlots) {
+      return { slots: cachedSlots }
+    }
+
     const dayOfWeek = date.getDay()
 
     // Get staff who can provide this service
@@ -266,9 +276,132 @@ export async function getAvailableSlots(data: {
       })
     })
 
+    // Cache the calculated slots
+    if (slots.length > 0) {
+      await setCachedSlots(cacheKey, slots, cacheTtl)
+    }
+
     return { slots }
   } catch (error) {
     console.error('Error getting available slots:', error)
     return { slots: [] }
+  }
+}
+
+export async function getAvailableDays(data: {
+  providerId: string
+  serviceId: string
+  daysAhead?: number
+}) {
+  try {
+    const daysAhead = data.daysAhead || 30
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    const availableDays: string[] = []
+
+    // Get service details
+    const service = await prisma.service.findUnique({
+      where: { id: data.serviceId },
+    })
+
+    if (!service) {
+      return { availableDays: [] }
+    }
+
+    // Get staff who can provide this service
+    const staff = await prisma.staffMember.findMany({
+      where: {
+        providerId: data.providerId,
+        isActive: true,
+        services: {
+          some: {
+            serviceId: data.serviceId,
+          },
+        },
+      },
+      include: {
+        availability: true,
+      },
+    })
+
+    if (staff.length === 0) {
+      return { availableDays: [] }
+    }
+
+    // Check each day in the range
+    for (let i = 0; i < daysAhead; i++) {
+      const checkDate = new Date(today)
+      checkDate.setDate(checkDate.getDate() + i)
+      const dayOfWeek = checkDate.getDay()
+
+      // Check if any staff has availability for this day
+      let hasAvailableSlot = false
+
+      for (const member of staff) {
+        // Check availability for this day of week
+        const dayAvailability = member.availability.filter(
+          av => av.dayOfWeek === dayOfWeek && !av.isBlocked
+        )
+
+        if (dayAvailability.length === 0) continue
+
+        // Check existing bookings for this date
+        const existingBookings = await prisma.booking.findMany({
+          where: {
+            staffId: member.id,
+            bookingDate: checkDate,
+            status: {
+              notIn: ['CANCELLED'],
+            },
+          },
+        })
+
+        // Generate potential slots and check if any are available
+        for (const av of dayAvailability) {
+          const [startHour, startMin] = av.startTime.split(':').map(Number)
+          const [endHour, endMin] = av.endTime.split(':').map(Number)
+          const startMinutes = startHour * 60 + startMin
+          const endMinutes = endHour * 60 + endMin
+
+          // Check slots in 15-minute intervals
+          for (let minutes = startMinutes; minutes + service.duration <= endMinutes; minutes += 15) {
+            const slotHour = Math.floor(minutes / 60)
+            const slotMin = minutes % 60
+            const timeString = `${slotHour.toString().padStart(2, '0')}:${slotMin.toString().padStart(2, '0')}`
+
+            const slotEndMinutes = minutes + service.duration
+            const slotEndTime = `${Math.floor(slotEndMinutes / 60).toString().padStart(2, '0')}:${(slotEndMinutes % 60).toString().padStart(2, '0')}`
+
+            // Check if slot conflicts with existing bookings
+            const hasConflict = existingBookings.some(booking => {
+              return (
+                (timeString >= booking.startTime && timeString < booking.endTime) ||
+                (slotEndTime > booking.startTime && slotEndTime <= booking.endTime) ||
+                (timeString <= booking.startTime && slotEndTime >= booking.endTime)
+              )
+            })
+
+            if (!hasConflict) {
+              hasAvailableSlot = true
+              break
+            }
+          }
+
+          if (hasAvailableSlot) break
+        }
+
+        if (hasAvailableSlot) break
+      }
+
+      if (hasAvailableSlot) {
+        availableDays.push(checkDate.toISOString().split('T')[0])
+      }
+    }
+
+    return { availableDays }
+  } catch (error) {
+    console.error('Error getting available days:', error)
+    return { availableDays: [] }
   }
 }

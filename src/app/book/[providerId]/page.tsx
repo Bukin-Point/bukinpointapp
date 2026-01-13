@@ -6,10 +6,13 @@ import { BookingFlow } from '@/components/booking/booking-flow'
 
 export default async function PublicBookingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ providerId?: string }>
+  searchParams: Promise<{ serviceId?: string }>
 }) {
   const { providerId } = await params
+  const { serviceId } = await searchParams
   const session = await getSession()
   const headersList = await headers()
   const providerIdFromHeader = headersList.get('x-provider-id')
@@ -50,6 +53,9 @@ export default async function PublicBookingPage({
     notFound()
   }
 
+  // Phone field is not yet in database - will be null until migration runs
+  const userPhone: string | null = null
+
   // Serialize Decimal fields to numbers for client component
   const serializedProvider = {
     ...provider,
@@ -77,7 +83,12 @@ export default async function PublicBookingPage({
             <h1 className="text-h1 mb-2">Book with {provider.businessName}</h1>
             <p className="text-body-sm text-text-secondary">{provider.industry}</p>
           </div>
-          <BookingFlow provider={serializedProvider} session={session} />
+          <BookingFlow 
+            provider={serializedProvider} 
+            session={session} 
+            initialServiceId={serviceId}
+            userPhone={userPhone}
+          />
         </div>
       </div>
     </div>

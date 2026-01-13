@@ -21,7 +21,19 @@ type BookingWithRelations = Booking & {
   }
 }
 
-export function BookingConfirmation({ booking }: { booking: BookingWithRelations }) {
+export function BookingConfirmation({ 
+  booking,
+  session,
+}: { 
+  booking: BookingWithRelations
+  session?: {
+    user: {
+      id: string
+      name: string | null
+      email: string
+    }
+  } | null
+}) {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mx-auto max-w-2xl">
@@ -86,13 +98,18 @@ export function BookingConfirmation({ booking }: { booking: BookingWithRelations
           </CardContent>
         </Card>
 
-        <div className="mt-6 text-center">
-          <Link href="/">
-            <Button variant="default" className="gap-2">
+        <div className="mt-6 flex gap-2 flex-col sm:flex-row justify-center">
+          <Button asChild variant="outline" className="gap-2">
+            <Link href="/">
               <Home className="h-4 w-4" />
               Go Back Home
+            </Link>
+          </Button>
+          {session && (
+            <Button asChild className="gap-2">
+              <Link href="/customer/dashboard">Go to Dashboard</Link>
             </Button>
-          </Link>
+          )}
         </div>
       </div>
     </div>

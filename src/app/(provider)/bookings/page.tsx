@@ -6,11 +6,19 @@ import { prisma } from '@/lib/db'
 import { BookingList } from '@/components/provider/booking-list'
 import { sanitizeProviderId } from '@/lib/auth-utils'
 import { ProviderContextError } from '@/components/provider/provider-context-error'
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 
 export default async function BookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ providerId?: string }>
+  searchParams: Promise<{ 
+    providerId?: string
+    dateFilter?: string
+    dateFrom?: string
+    dateTo?: string
+    staffId?: string
+    serviceId?: string
+  }>
 }) {
   const session = await getSession()
 
@@ -44,6 +52,8 @@ export default async function BookingsPage({
   const providerId = accessContext.provider.id
   const canViewAll = canViewAllBookings(accessContext)
 
+  const { dateFilter, dateFrom, dateTo, staffId, serviceId } = params
+
   // Build booking where clause
   const bookingWhere: any = { providerId }
   
@@ -61,6 +71,44 @@ export default async function BookingsPage({
     }
   }
 
+  // Apply date filter
+  if (dateFilter || dateFrom || dateTo) {
+    const now = new Date()
+    let dateStart: Date | undefined
+    let dateEnd: Date | undefined
+
+    if (dateFilter === 'today') {
+      dateStart = startOfDay(now)
+      dateEnd = endOfDay(now)
+    } else if (dateFilter === 'thisWeek') {
+      dateStart = startOfWeek(now, { weekStartsOn: 1 })
+      dateEnd = endOfWeek(now, { weekStartsOn: 1 })
+    } else if (dateFilter === 'thisMonth') {
+      dateStart = startOfMonth(now)
+      dateEnd = endOfMonth(now)
+    } else if (dateFrom || dateTo) {
+      dateStart = dateFrom ? startOfDay(new Date(dateFrom)) : undefined
+      dateEnd = dateTo ? endOfDay(new Date(dateTo)) : undefined
+    }
+
+    if (dateStart || dateEnd) {
+      bookingWhere.bookingDate = {}
+      if (dateStart) bookingWhere.bookingDate.gte = dateStart
+      if (dateEnd) bookingWhere.bookingDate.lte = dateEnd
+    }
+  }
+
+  // Apply staff filter
+  if (staffId && canViewAll) {
+    bookingWhere.staffId = staffId
+  }
+
+  // Apply service filter
+  if (serviceId) {
+    bookingWhere.serviceId = serviceId
+  }
+
+  // Fetch bookings with filters
   const bookings = await prisma.booking.findMany({
     where: bookingWhere,
     include: {
@@ -84,6 +132,45 @@ export default async function BookingsPage({
     orderBy: { bookingDate: 'desc' },
   })
 
+  // Fetch staff and services for filter dropdowns
+  const staff = canViewAll
+    ? await prisma.staffMember.findMany({
+        where: { providerId, isActive: true },
+        include: {
+          user: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    : []
+
+  const services = await prisma.service.findMany({
+    where: { providerId },
+    select: {
+      id: true,
+      name: true,
+      duration: true,
+      price: true,
+    },
+    orderBy: { name: 'asc' },
+  })
+
+  // Serialize services to convert Decimal price to number
+  const serializedServices = services.map((service) => ({
+    ...service,
+    price: Number(service.price),
+  }))
+
+  // Serialize staff for client component
+  const serializedStaff = staff.map((s) => ({
+    id: s.id,
+    user: s.user,
+  }))
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -92,7 +179,19 @@ export default async function BookingsPage({
           View and manage customer bookings
         </p>
       </div>
-      <BookingList bookings={bookings} providerId={providerId} />
+      <BookingList 
+        bookings={bookings} 
+        providerId={providerId}
+        staff={serializedStaff}
+        services={serializedServices}
+        initialFilters={{
+          dateFilter: dateFilter || 'all',
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
+          staffId: staffId || undefined,
+          serviceId: serviceId || undefined,
+        }}
+      />
     </div>
   )
 }
