@@ -109,13 +109,14 @@ export default async function BookingsPage({
   }
 
   // Fetch bookings with filters
-  const bookings = await prisma.booking.findMany({
+  const bookingsRaw = await prisma.booking.findMany({
     where: bookingWhere,
     include: {
       service: {
         select: {
           id: true,
           name: true,
+          price: true,
         },
       },
       staff: {
@@ -131,6 +132,12 @@ export default async function BookingsPage({
     },
     orderBy: { bookingDate: 'desc' },
   })
+
+  // Serialize bookings: convert Decimal price to number for client
+  const bookings = bookingsRaw.map((b) => ({
+    ...b,
+    service: { ...b.service, price: Number(b.service.price) },
+  }))
 
   // Fetch staff and services for filter dropdowns
   const staff = canViewAll
@@ -172,8 +179,8 @@ export default async function BookingsPage({
   }))
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-6">
+    <div className="space-y-6 min-w-0">
+      <div>
         <h1 className="text-h1 mb-2">Bookings</h1>
         <p className="text-body-sm text-text-secondary">
           View and manage customer bookings

@@ -91,10 +91,10 @@ export default async function ServicesPage({
   }))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       <div>
         <h1 className="text-h1 mb-2">Services</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <p className="text-body-sm text-text-secondary">
             {canEdit ? 'Manage your service offerings' : 'View service offerings'}
           </p>

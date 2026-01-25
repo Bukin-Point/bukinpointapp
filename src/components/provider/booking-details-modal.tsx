@@ -18,7 +18,7 @@ type BookingWithRelations = Booking & {
   service: {
     id: string
     name: string
-    price: number
+    price?: number
   }
   staff: {
     user: {
@@ -132,7 +132,7 @@ export function BookingDetailsModal({
               </div>
               <div>
                 <span className="text-text-secondary mb-1">Price</span>
-                <p className="font-medium">₦{Number(booking.service.price).toLocaleString()}</p>
+                <p className="font-medium">₦{Number(booking.service?.price ?? 0).toLocaleString()}</p>
               </div>
               <div>
                 <span className="text-text-secondary mb-1">Staff</span>

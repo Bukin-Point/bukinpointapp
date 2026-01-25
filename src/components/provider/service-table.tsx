@@ -4,7 +4,12 @@ import { useState, useMemo } from 'react'
 import { SerializedService } from './service-list'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   MoreVertical,
   ArrowUpDown,
@@ -40,7 +45,6 @@ export function ServiceTable({
 }: ServiceTableProps) {
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
-  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null)
 
   const sortedServices = useMemo(() => {
     if (!sortField) return services
@@ -101,16 +105,77 @@ export function ServiceTable({
 
   if (services.length === 0) {
     return (
-      <div className="border rounded-lg p-12 text-center">
+      <div className="border rounded-lg p-8 sm:p-12 text-center">
         <p className="text-body-sm text-text-secondary">No services found.</p>
       </div>
     )
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
+    <>
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {sortedServices.map((service) => {
+          const serviceImage = service.image || DEFAULT_IMAGE
+          return (
+            <div
+              key={service.id}
+              className="border rounded-lg p-3 flex gap-3 items-center bg-card cursor-pointer"
+              onClick={() => onViewDetails(service)}
+            >
+              <div className="relative w-12 h-12 shrink-0 rounded-md overflow-hidden bg-muted">
+                <Image
+                  src={serviceImage}
+                  alt={service.name}
+                  fill
+                  className="object-cover"
+                  sizes="48px"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-body-sm truncate">{service.name}</p>
+                <p className="text-caption text-text-secondary">
+                  {service.duration} min · ₦{Number(service.price).toLocaleString()}
+                </p>
+                <Badge variant={service.isActive ? 'default' : 'secondary'} className="mt-1 text-xs">
+                  {service.isActive ? 'Active' : 'Inactive'}
+                </Badge>
+              </div>
+              {canEdit && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">Open menu</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewDetails(service) }}>
+                      <Eye className="mr-2 h-4 w-4" /> View Details
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(service) }} disabled={loading === service.id}>
+                      <Edit className="mr-2 h-4 w-4" /> Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(service.id) }} disabled={loading === service.id} className="text-destructive focus:text-destructive">
+                      <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px]">
           <thead className="bg-muted/50 border-b">
             <tr>
               <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
@@ -141,8 +206,6 @@ export function ServiceTable({
           <tbody>
             {sortedServices.map((service) => {
               const serviceImage = service.image || DEFAULT_IMAGE
-              const isActionMenuOpen = openActionMenu === service.id
-
               return (
                 <tr
                   key={service.id}
@@ -183,71 +246,26 @@ export function ServiceTable({
                   </td>
                   {canEdit && (
                     <td className="p-3">
-                      <div className="flex justify-end">
-                        <Popover
-                          open={isActionMenuOpen}
-                          onOpenChange={(open) => setOpenActionMenu(open ? service.id : null)}
-                        >
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                              }}
-                            >
+                      <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                               <MoreVertical className="h-4 w-4" />
                               <span className="sr-only">Open menu</span>
                             </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-48 p-1"
-                            align="end"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="space-y-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full justify-start"
-                                onClick={() => {
-                                  onViewDetails(service)
-                                  setOpenActionMenu(null)
-                                }}
-                              >
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full justify-start"
-                                onClick={() => {
-                                  onEdit(service)
-                                  setOpenActionMenu(null)
-                                }}
-                                disabled={loading === service.id}
-                              >
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full justify-start text-destructive hover:text-destructive"
-                                onClick={() => {
-                                  onDelete(service.id)
-                                  setOpenActionMenu(null)
-                                }}
-                                disabled={loading === service.id}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={() => onViewDetails(service)}>
+                              <Eye className="mr-2 h-4 w-4" /> View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onEdit(service)} disabled={loading === service.id}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onDelete(service.id)} disabled={loading === service.id} className="text-destructive focus:text-destructive">
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   )}
@@ -258,5 +276,6 @@ export function ServiceTable({
         </table>
       </div>
     </div>
+    </>
   )
 }

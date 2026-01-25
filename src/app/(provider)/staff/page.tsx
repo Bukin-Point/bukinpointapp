@@ -83,7 +83,7 @@ export default async function StaffPage({
   }))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       <div>
         <h1 className="text-h1 mb-2">Staff Members</h1>
         <p className="text-body-sm text-text-secondary">

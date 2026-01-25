@@ -4,7 +4,12 @@ import { useState, useMemo } from 'react'
 import { Booking } from '@prisma/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   MoreVertical,
   ArrowUpDown,
@@ -12,7 +17,6 @@ import {
   ArrowDown,
   CheckCircle,
   XCircle,
-  Clock,
   Calendar,
   Ban,
 } from 'lucide-react'
@@ -37,6 +41,7 @@ interface BookingTableProps {
   onStatusUpdate: (bookingId: string, newStatus: Booking['status']) => void
   onCancel?: (bookingId: string) => void
   onReschedule?: (booking: BookingWithRelations) => void
+  onViewDetails?: (booking: BookingWithRelations) => void
   loading?: string | null
 }
 
@@ -56,11 +61,11 @@ export function BookingTable({
   onStatusUpdate,
   onCancel,
   onReschedule,
+  onViewDetails,
   loading,
 }: BookingTableProps) {
   const [sortField, setSortField] = useState<SortField>('date')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null)
 
   const sortedBookings = useMemo(() => {
     if (!sortField) return bookings
@@ -175,16 +180,75 @@ export function BookingTable({
 
   if (bookings.length === 0) {
     return (
-      <div className="border rounded-lg p-12 text-center">
+      <div className="border rounded-lg p-8 sm:p-12 text-center">
         <p className="text-body-sm text-text-secondary">No bookings found.</p>
       </div>
     )
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
+    <>
+      {/* Mobile card view */}
+      <div className="md:hidden space-y-3">
+        {sortedBookings.map((booking) => {
+          const statusActions = getStatusActions(booking)
+          return (
+            <div
+              key={booking.id}
+              className="border rounded-lg p-3 bg-card cursor-pointer"
+              onClick={() => onViewDetails?.(booking)}
+            >
+              <div className="flex justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-body-sm">{booking.service.name}</p>
+                  <p className="text-caption text-text-secondary">
+                    {format(new Date(booking.bookingDate), 'MMM dd, yyyy')} · {booking.startTime}–{booking.endTime}
+                  </p>
+                  <p className="text-caption text-text-secondary mt-0.5">{booking.customerName}</p>
+                  <Badge className={`mt-1 ${STATUS_COLORS[booking.status]}`}>{booking.status}</Badge>
+                </div>
+                {statusActions.length > 0 && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <MoreVertical className="h-4 w-4" />
+                        <span className="sr-only">Open menu</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
+                      {statusActions.map((action, index) => (
+                        <DropdownMenuItem
+                          key={`${action.type}-${action.status}-${index}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (action.type === 'status') {
+                              onStatusUpdate(booking.id, action.status)
+                            } else if (action.type === 'cancel' && onCancel) {
+                              onCancel(booking.id)
+                            } else if (action.type === 'reschedule' && onReschedule) {
+                              onReschedule(booking)
+                            }
+                          }}
+                          disabled={loading === booking.id}
+                          className={action.variant === 'destructive' ? 'text-destructive focus:text-destructive' : ''}
+                        >
+                          {action.icon}
+                          {action.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden md:block border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]">
           <thead className="bg-muted/50 border-b">
             <tr>
               <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
@@ -215,13 +279,12 @@ export function BookingTable({
           </thead>
           <tbody>
             {sortedBookings.map((booking) => {
-              const isActionMenuOpen = openActionMenu === booking.id
               const statusActions = getStatusActions(booking)
-
               return (
                 <tr
                   key={booking.id}
-                  className="border-b hover:bg-muted/30 transition-colors"
+                  className="border-b hover:bg-muted/30 transition-colors cursor-pointer"
+                  onClick={() => onViewDetails?.(booking)}
                 >
                   <td className="p-3 text-body-sm">
                     <span>{format(new Date(booking.bookingDate), 'MMM dd, yyyy')}</span>
@@ -255,56 +318,37 @@ export function BookingTable({
                     </Badge>
                   </td>
                   <td className="p-3">
-                    <div className="flex justify-end">
+                    <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
                       {statusActions.length > 0 ? (
-                        <Popover
-                          open={isActionMenuOpen}
-                          onOpenChange={(open) => setOpenActionMenu(open ? booking.id : null)}
-                        >
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                            >
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                               <MoreVertical className="h-4 w-4" />
                               <span className="sr-only">Open menu</span>
                             </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-48 p-1"
-                            align="end"
-                          >
-                            <div className="space-y-1">
-                              {statusActions.map((action, index) => (
-                                <Button
-                                  key={`${action.type}-${action.status}-${index}`}
-                                  variant="ghost"
-                                  size="sm"
-                                  className={`w-full justify-start ${
-                                    action.variant === 'destructive'
-                                      ? 'text-destructive hover:text-destructive'
-                                      : ''
-                                  }`}
-                                  onClick={() => {
-                                    if (action.type === 'status') {
-                                      onStatusUpdate(booking.id, action.status)
-                                    } else if (action.type === 'cancel' && onCancel) {
-                                      onCancel(booking.id)
-                                    } else if (action.type === 'reschedule' && onReschedule) {
-                                      onReschedule(booking)
-                                    }
-                                    setOpenActionMenu(null)
-                                  }}
-                                  disabled={loading === booking.id}
-                                >
-                                  {action.icon}
-                                  {action.label}
-                                </Button>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            {statusActions.map((action, index) => (
+                              <DropdownMenuItem
+                                key={`${action.type}-${action.status}-${index}`}
+                                onClick={() => {
+                                  if (action.type === 'status') {
+                                    onStatusUpdate(booking.id, action.status)
+                                  } else if (action.type === 'cancel' && onCancel) {
+                                    onCancel(booking.id)
+                                  } else if (action.type === 'reschedule' && onReschedule) {
+                                    onReschedule(booking)
+                                  }
+                                }}
+                                disabled={loading === booking.id}
+                                className={action.variant === 'destructive' ? 'text-destructive focus:text-destructive' : ''}
+                              >
+                                {action.icon}
+                                {action.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       ) : (
                         <span className="text-caption text-text-secondary">—</span>
                       )}
@@ -317,5 +361,6 @@ export function BookingTable({
         </table>
       </div>
     </div>
+    </>
   )
 }

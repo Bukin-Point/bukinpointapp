@@ -155,9 +155,9 @@ export function StaffList({ staff: initialStaff, services, providerId }: StaffLi
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       <div className="flex justify-end">
-        <Button onClick={handleCreate}>
+        <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Add Staff Member
         </Button>

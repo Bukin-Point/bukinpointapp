@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { BookingTable } from './booking-table'
 import { BookingFormModal } from './booking-form-modal'
+import { BookingDetailsModal } from './booking-details-modal'
 import { RescheduleBookingModal } from './reschedule-booking-modal'
 import { updateBookingStatus, cancelBooking } from '@/actions/bookings'
 import { useToast } from '@/hooks/use-toast'
@@ -19,6 +20,7 @@ type BookingWithRelations = Booking & {
   service: {
     id: string
     name: string
+    price?: number
   }
   staff: {
     id: string
@@ -67,6 +69,8 @@ export function BookingList({
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false)
   const [selectedBookingForReschedule, setSelectedBookingForReschedule] = useState<BookingWithRelations | null>(null)
+  const [selectedBookingForDetails, setSelectedBookingForDetails] = useState<BookingWithRelations | null>(null)
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
 
   // Filter state from URL params
   const [dateFilter, setDateFilter] = useState(initialFilters?.dateFilter || 'all')
@@ -238,6 +242,11 @@ export function BookingList({
     }
   }
 
+  const handleViewDetails = (booking: BookingWithRelations) => {
+    setSelectedBookingForDetails(booking)
+    setIsDetailsModalOpen(true)
+  }
+
   const handleReschedule = (booking: BookingWithRelations) => {
     setSelectedBookingForReschedule(booking)
     setIsRescheduleModalOpen(true)
@@ -279,7 +288,7 @@ export function BookingList({
   const hasActiveFilters = dateFilter !== 'all' || dateFrom || dateTo || staffFilter !== 'all' || serviceFilter !== 'all'
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       {/* Header with Create & Refresh Buttons */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
@@ -288,7 +297,7 @@ export function BookingList({
             {isFetching ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
-        <Button onClick={() => setIsBookingModalOpen(true)}>
+        <Button onClick={() => setIsBookingModalOpen(true)} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           Create Booking
         </Button>
@@ -342,11 +351,11 @@ export function BookingList({
 
       {/* Advanced Filters */}
       <div className="flex flex-wrap gap-4 items-end p-4 border rounded-lg bg-muted/30">
-        <div className="space-y-2">
+        <div className="space-y-2 w-full sm:min-w-0">
           <label className="text-body-sm font-medium">Date Filter</label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Select value={dateFilter} onValueChange={handleDateFilterChange}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-full sm:w-[140px]">
                 <SelectValue placeholder="Date" />
               </SelectTrigger>
               <SelectContent>
@@ -367,7 +376,7 @@ export function BookingList({
                     handleDateRangeChange()
                   }}
                   placeholder="From"
-                  className="w-[140px]"
+                  className="w-full sm:w-[140px]"
                 />
                 <Input
                   type="date"
@@ -377,7 +386,7 @@ export function BookingList({
                     handleDateRangeChange()
                   }}
                   placeholder="To"
-                  className="w-[140px]"
+                  className="w-full sm:w-[140px]"
                 />
               </div>
             )}
@@ -385,7 +394,7 @@ export function BookingList({
         </div>
 
         {staff.length > 0 && (
-          <div className="space-y-2 min-w-[200px]">
+          <div className="space-y-2 w-full sm:min-w-[160px]">
             <label className="text-body-sm font-medium">Staff</label>
             <Combobox
               options={staffOptions}
@@ -398,7 +407,7 @@ export function BookingList({
         )}
 
         {services.length > 0 && (
-          <div className="space-y-2 min-w-[200px]">
+          <div className="space-y-2 w-full sm:min-w-[160px]">
             <label className="text-body-sm font-medium">Service</label>
             <Combobox
               options={serviceOptions}
@@ -433,6 +442,7 @@ export function BookingList({
           onStatusUpdate={handleStatusUpdate}
           onCancel={handleCancel}
           onReschedule={handleReschedule}
+          onViewDetails={handleViewDetails}
           loading={loading}
         />
       )}
@@ -444,6 +454,14 @@ export function BookingList({
         open={isBookingModalOpen}
         onOpenChange={setIsBookingModalOpen}
         onSuccess={handleBookingCreated}
+      />
+
+      <BookingDetailsModal
+        booking={selectedBookingForDetails}
+        open={isDetailsModalOpen}
+        onOpenChange={setIsDetailsModalOpen}
+        onStatusUpdate={handleStatusUpdate}
+        loading={loading === selectedBookingForDetails?.id}
       />
 
       {selectedBookingForReschedule && (
