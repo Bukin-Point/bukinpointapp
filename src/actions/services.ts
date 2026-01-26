@@ -10,7 +10,7 @@ const serviceSchema = z.object({
   description: z.string().optional(),
   image: z.union([z.string().url(), z.literal(''), z.null()]).optional(),
   duration: z.number().int().min(15, 'Duration must be at least 15 minutes'),
-  price: z.number().min(0, 'Price must be positive'),
+  price: z.number().min(100, 'Price must be at least ₦100'),
   isActive: z.boolean().default(true),
 })
 

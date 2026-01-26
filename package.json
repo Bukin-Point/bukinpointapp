@@ -15,6 +15,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\""
   },
   "dependencies": {
+    "@noble/hashes": "^2.0.1",
     "@aws-sdk/client-s3": "^3.966.0",
     "@aws-sdk/s3-request-presigner": "^3.966.0",
     "@clerk/nextjs": "^6.36.7",
@@ -46,7 +47,6 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "@noble/hashes": "^2.0.1",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",

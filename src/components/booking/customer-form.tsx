@@ -21,6 +21,7 @@ interface CustomerFormProps {
     phone: string
     email?: string
     notes?: string
+    consentGiven: boolean
   }) => void
   onBack: () => void
   loading: boolean
@@ -70,6 +71,7 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading, s
       phone: formData.phone,
       email: formData.email || undefined,
       notes: formData.notes || undefined,
+      consentGiven: consentAccepted,
     })
   }
 
@@ -213,7 +215,7 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading, s
             Back
           </Button>
           <Button type="submit" disabled={loading || !consentAccepted} className="flex-1">
-            {loading ? 'Processing...' : 'Complete Booking'}
+            {loading ? 'Processing...' : 'Pay with OPay'}
           </Button>
         </CardFooter>
       </form>

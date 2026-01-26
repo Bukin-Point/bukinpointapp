@@ -5,16 +5,12 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { lockSlot, releaseSlot, getCachedSlots, setCachedSlots, invalidateSlotCache } from '@/lib/redis'
 import { getSession } from '@/lib/auth-helpers-clerk'
-import {
-  sendBookingConfirmationEmail,
-  sendProviderBookingNotificationEmail,
-} from '@/lib/email'
-
+import { createOPayCashierPayment } from '@/lib/opay'
 const createBookingSchema = z.object({
   providerId: z.string(),
   serviceId: z.string(),
   staffId: z.string(),
-  userId: z.string().optional(), // Optional: link to customer account
+  userId: z.string().optional(),
   customerName: z.string().min(1, 'Customer name is required'),
   customerPhone: z.string().min(1, 'Phone number is required'),
   customerEmail: z.string().email().optional(),
@@ -22,6 +18,7 @@ const createBookingSchema = z.object({
   startTime: z.string(),
   endTime: z.string(),
   notes: z.string().optional(),
+  consentGiven: z.boolean(),
 })
 
 export async function createBooking(data: z.infer<typeof createBookingSchema>) {
@@ -50,6 +47,15 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
     }
 
     try {
+      const service = await prisma.service.findUnique({
+        where: { id: validated.serviceId },
+        select: { price: true, name: true },
+      })
+      if (!service) return { error: 'Service not found' }
+      if (Number(service.price) < 100) {
+        return { error: 'Service price must be at least ₦100.' }
+      }
+
       // Check if slot is available
       const conflictingBooking = await prisma.booking.findFirst({
         where: {
@@ -80,13 +86,13 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
         return { error: 'This time slot is no longer available' }
       }
 
-      // Create booking
+      // Create booking (emails sent from OPay webhook on payment success)
       const booking = await prisma.booking.create({
         data: {
           providerId: validated.providerId,
           serviceId: validated.serviceId,
           staffId: validated.staffId,
-          userId: finalUserId, // Link to customer account if logged in
+          userId: finalUserId,
           customerName: validated.customerName,
           customerPhone: validated.customerPhone,
           customerEmail: validated.customerEmail,
@@ -94,6 +100,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
           startTime: validated.startTime,
           endTime: validated.endTime,
           notes: validated.notes,
+          consentGiven: validated.consentGiven,
         },
         include: {
           service: true,
@@ -105,64 +112,6 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
           },
         },
       })
-
-      // Send booking confirmation emails (non-blocking)
-      const emailPromises: Promise<unknown>[] = []
-
-      // Send customer confirmation email if email is provided
-      if (booking.customerEmail) {
-        emailPromises.push(
-          sendBookingConfirmationEmail({
-            customerEmail: booking.customerEmail,
-            customerName: booking.customerName,
-            bookingRef: booking.bookingRef,
-            serviceName: booking.service.name,
-            providerBusinessName: booking.provider.businessName,
-            bookingDate: booking.bookingDate,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            staffName: booking.staff.user.name,
-            price: Number(booking.service.price),
-            providerPhone: booking.provider.phone || undefined,
-          }).catch((error) => {
-            console.error('Error sending customer booking confirmation email:', error)
-          })
-        )
-      }
-
-      // Send provider notification email
-      if (booking.provider.email) {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-        emailPromises.push(
-          sendProviderBookingNotificationEmail({
-            providerEmail: booking.provider.email,
-            providerBusinessName: booking.provider.businessName,
-            customerName: booking.customerName,
-            customerPhone: booking.customerPhone,
-            customerEmail: booking.customerEmail,
-            bookingRef: booking.bookingRef,
-            serviceName: booking.service.name,
-            bookingDate: booking.bookingDate,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            staffName: booking.staff.user.name,
-            price: Number(booking.service.price),
-            bookingUrl: `${appUrl}/bookings`,
-          }).catch((error) => {
-            console.error('Error sending provider booking notification email:', error)
-          })
-        )
-      }
-
-      // Send emails in parallel (don't wait for them to complete)
-      if (emailPromises.length > 0) {
-        Promise.all(emailPromises).catch((error) => {
-          console.error('Error sending booking emails:', error)
-        })
-      }
-
-      // Keep lock until payment is processed or fails
-      // Lock will expire after 5 minutes automatically
 
       revalidatePath(`/book/${validated.providerId}`)
       return { success: true, booking, lockKey }
@@ -404,4 +353,54 @@ export async function getAvailableDays(data: {
     console.error('Error getting available days:', error)
     return { availableDays: [] }
   }
+}
+
+export async function getBookingByRef(bookingRef: string) {
+  const booking = await prisma.booking.findUnique({
+    where: { bookingRef },
+    include: {
+      service: true,
+      provider: { select: { businessName: true } },
+      staff: { include: { user: { select: { name: true } } } },
+    },
+  })
+  if (!booking) return { error: 'Booking not found' }
+  return {
+    booking: {
+      ...booking,
+      service: { ...booking.service, price: Number(booking.service.price) },
+    },
+  }
+}
+
+export async function initiateOPayCashierPayment(bookingRef: string) {
+  const booking = await prisma.booking.findUnique({
+    where: { bookingRef },
+    include: { service: true, provider: true, staff: { include: { user: true } } },
+  })
+  if (!booking) return { error: 'Booking not found' }
+  if (booking.paymentStatus === 'PAID') return { error: 'Booking is already paid.' }
+  if (Number(booking.service.price) < 100) return { error: 'Service price must be at least ₦100.' }
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const date = booking.bookingDate.toISOString().split('T')[0]
+  const time = `${booking.startTime}–${booking.endTime}`
+
+  const result = await createOPayCashierPayment({
+    reference: booking.bookingRef,
+    amountTotalKobo: Math.round(Number(booking.service.price) * 100),
+    product: { name: booking.service.name, description: `Booking: ${booking.service.name} - ${date} ${time}` },
+    returnUrl: `${baseUrl}/book/${booking.providerId}/confirm?ref=${booking.bookingRef}`,
+    callbackUrl: `${baseUrl}/api/webhooks/opay`,
+    cancelUrl: `${baseUrl}/book/${booking.providerId}?payment=cancelled`,
+    userInfo: {
+      userName: booking.customerName,
+      userMobile: booking.customerPhone,
+      userEmail: booking.customerEmail ?? undefined,
+    },
+    expireAt: 30,
+  })
+
+  if ('error' in result) return { error: result.error }
+  return { success: true, cashierUrl: result.cashierUrl }
 }

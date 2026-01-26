@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Provider, StaffMember } from '@prisma/client'
 import { ServiceSelector } from './service-selector'
 import { TimePicker } from './time-picker'
 import { CustomerForm } from './customer-form'
-import { createBooking } from '@/app/book/[providerId]/actions'
+import { createBooking, initiateOPayCashierPayment } from '@/app/book/[providerId]/actions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 // Serialized Service type with price as number instead of Decimal
@@ -43,7 +42,6 @@ interface BookingFlowProps {
 type BookingStep = 'service' | 'time' | 'customer' | 'confirming'
 
 export function BookingFlow({ provider, session, initialServiceId, userPhone }: BookingFlowProps) {
-  const router = useRouter()
   const [step, setStep] = useState<BookingStep>('service')
   const [selectedService, setSelectedService] = useState<SerializedService | null>(null)
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null)
@@ -51,6 +49,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [paymentBookingRef, setPaymentBookingRef] = useState<string | null>(null)
 
   // Auto-select service if initialServiceId is provided
   useEffect(() => {
@@ -101,6 +100,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
     phone: string
     email?: string
     notes?: string
+    consentGiven: boolean
   }) => {
     if (!selectedService || !selectedStaff || !selectedDate || !selectedTime) {
       setError('Please complete all steps')
@@ -111,7 +111,6 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
     setError('')
 
     try {
-      // Calculate end time based on service duration
       const [hours, minutes] = selectedTime.split(':').map(Number)
       const startDateTime = new Date(selectedDate)
       startDateTime.setHours(hours, minutes, 0, 0)
@@ -129,13 +128,20 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
         startTime: selectedTime,
         endTime: `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`,
         notes: customerData.notes,
+        consentGiven: customerData.consentGiven,
       })
 
       if (result.error) {
         setError(result.error)
         setLoading(false)
       } else if (result.booking) {
-        router.push(`/book/${provider.id}/confirm?ref=${result.booking.bookingRef}`)
+        const cashier = await initiateOPayCashierPayment(result.booking.bookingRef)
+        if (cashier.cashierUrl) {
+          window.location.href = cashier.cashierUrl
+        } else {
+          setError(cashier.error ?? 'Failed to start payment')
+          setLoading(false)
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred')

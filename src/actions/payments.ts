@@ -26,66 +26,55 @@ export async function processPayment(data: z.infer<typeof processPaymentSchema>)
       return { error: 'Booking not found' }
     }
 
-    if (booking.paymentStatus === 'PAID') {
-      return { error: 'Booking is already paid' }
+    // Idempotent: if Transaction already exists, return success
+    const existing = await prisma.transaction.findUnique({
+      where: { bookingId: validated.bookingId },
+    })
+    if (existing) {
+      return { success: true, transaction: existing }
     }
 
-    // Create lock key
     const lockKey = `booking:${validated.bookingId}:payment`
-
-    // Try to acquire lock
-    const lockAcquired = await lockSlot(lockKey, 300) // 5 minutes
-
+    const lockAcquired = await lockSlot(lockKey, 300)
     if (!lockAcquired) {
       return { error: 'Payment is already being processed' }
     }
 
     try {
-      // Simulate payment processing
-      // In production, this would integrate with a payment gateway
-      const platformFeePercentage = parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || '10')
       const amount = Number(booking.service.price)
-      const platformFee = (amount * platformFeePercentage) / 100
-      const netAmount = amount - platformFee
+      const platformFee = 100
+      const netAmount = amount >= 100 ? amount - 100 : 0
+      const fee = amount < 100 ? amount : 100
 
-      // Create transaction
       const transaction = await prisma.$transaction(async (tx) => {
-        // Update booking payment status
-        const updatedBooking = await tx.booking.update({
-          where: { id: validated.bookingId },
-          data: {
-            paymentStatus: 'PAID',
-            paymentRef: `PAY-${Date.now()}`,
-          },
-        })
+        if (booking.paymentStatus !== 'PAID') {
+          await tx.booking.update({
+            where: { id: validated.bookingId },
+            data: { paymentStatus: 'PAID', paymentRef: `PAY-${Date.now()}` },
+          })
+        }
 
-        // Create transaction record
         const newTransaction = await tx.transaction.create({
           data: {
             bookingId: validated.bookingId,
             amount,
-            platformFee,
+            platformFee: fee,
             netAmount,
-            paymentProvider: 'SIMULATED',
-            providerRef: `PROV-${Date.now()}`,
+            paymentProvider: 'OPAY',
+            providerRef: booking.paymentRef ?? null,
             status: 'PAID',
           },
         })
 
-        // Update wallet
         await tx.wallet.update({
           where: { providerId: booking.providerId },
           data: {
-            balance: {
-              increment: netAmount,
-            },
-            totalEarnings: {
-              increment: netAmount,
-            },
+            balance: { increment: netAmount },
+            totalEarnings: { increment: netAmount },
           },
         })
 
-        return { booking: updatedBooking, transaction: newTransaction }
+        return { transaction: newTransaction }
       })
 
       // Release lock

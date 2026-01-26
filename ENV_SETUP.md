@@ -74,6 +74,12 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"  # Development: http://bukinpoint.te
 PLATFORM_FEE_PERCENTAGE="10"
 SLOT_LOCK_TTL="300"
 
+# OPay (Cashier / secured checkout – redirect to OPay hosted page)
+OPAY_PUBLIC_KEY="OPAYPUB..."   # From OPay dashboard (Public Key); used as Bearer for Cashier Create
+OPAY_MERCHANT_ID="256612345678901"
+OPAY_PRIVATE_KEY="OPAYPRV..."  # From OPay dashboard (Secret Key); used for webhook HMAC-SHA3-512 verification only
+OPAY_BASE_URL="https://testapi.opaycheckout.com"  # Staging. Production: https://liveapi.opaycheckout.com
+
 # Production Domain Configuration (for subdomain redirects)
 # Only needed if using subdomain redirects after authentication
 # ALLOWED_REDIRECT_DOMAINS="bukinpoint.com"  # Optional: Explicit whitelist for redirect validation

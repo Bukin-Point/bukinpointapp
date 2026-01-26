@@ -9,10 +9,11 @@ export default async function PublicBookingPage({
   searchParams,
 }: {
   params: Promise<{ providerId?: string }>
-  searchParams: Promise<{ serviceId?: string }>
+  searchParams: Promise<{ serviceId?: string; payment?: string }>
 }) {
   const { providerId } = await params
-  const { serviceId } = await searchParams
+  const { serviceId, payment } = await searchParams
+  const paymentCancelled = payment === 'cancelled'
   const session = await getSession()
   const headersList = await headers()
   const providerIdFromHeader = headersList.get('x-provider-id')
@@ -79,6 +80,11 @@ export default async function PublicBookingPage({
     <div className="min-h-screen bg-surface py-8">
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-4xl">
+          {paymentCancelled && (
+            <div className="mb-4 rounded-md border border-warning bg-warning-light/50 px-4 py-3 text-body-sm text-warning">
+              Payment was cancelled. Your booking was not confirmed. You can try again below.
+            </div>
+          )}
           <div className="mb-8 text-center">
             <h1 className="text-h1 mb-2">Book with {provider.businessName}</h1>
             <p className="text-body-sm text-text-secondary">{provider.industry}</p>

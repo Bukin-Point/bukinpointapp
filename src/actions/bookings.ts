@@ -9,18 +9,9 @@ import {
   sendProviderBookingNotificationEmail,
   sendRescheduleNotificationEmail,
 } from '@/lib/email'
-import {
-  canViewAllBookings,
-  getProviderAccess,
-} from '@/lib/staff-helpers'
-import {
-  startOfDay,
-  endOfDay,
-  startOfWeek,
-  endOfWeek,
-  startOfMonth,
-  endOfMonth,
-} from 'date-fns'
+import { canViewAllBookings, getProviderAccess } from '@/lib/staff-helpers'
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
+import { processPayment } from '@/actions/payments'
 
 // Define BookingStatus type from Prisma namespace (available even if client not generated)
 type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW'
@@ -46,11 +37,14 @@ export async function updateBookingStatus(bookingId: string, status: BookingStat
 
     const previousStatus = booking.status
 
-    // Update booking status
     await prisma.booking.update({
       where: { id: bookingId },
       data: { status },
     })
+
+    if (status === 'COMPLETED') {
+      processPayment({ bookingId }).catch((e) => console.error('updateBookingStatus: processPayment error', e))
+    }
 
     // Send status update email to customer if status changed to a notifiable status
     if (
