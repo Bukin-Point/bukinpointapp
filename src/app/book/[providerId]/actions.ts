@@ -56,13 +56,33 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
         return { error: 'Service price must be at least ₦100.' }
       }
 
-      // Check if slot is available
+      // Prevent booking past times
+      const now = new Date()
+      const bookingDateTime = new Date(validated.bookingDate)
+      const [hours, minutes] = validated.startTime.split(':').map(Number)
+      bookingDateTime.setHours(hours, minutes, 0, 0)
+      
+      // Require booking to be at least 15 minutes in the future
+      const minBookingTime = new Date(now.getTime() + 15 * 60 * 1000)
+      if (bookingDateTime < minBookingTime) {
+        await releaseSlot(lockKey)
+        return { error: 'Cannot book appointments in the past. Please select a future time slot.' }
+      }
+
+      // Check if slot is available (exclude abandoned PENDING: payment never completed, created >30 min ago)
+      const abandonedBefore = new Date(Date.now() - 30 * 60 * 1000)
       const conflictingBooking = await prisma.booking.findFirst({
         where: {
           staffId: validated.staffId,
           bookingDate: validated.bookingDate,
-          status: {
-            notIn: ['CANCELLED'],
+          status: { notIn: ['CANCELLED'] },
+          // Don't treat as conflict: PENDING + payment PENDING and created >30 min ago (OPay expireAt)
+          NOT: {
+            AND: [
+              { status: 'PENDING' },
+              { paymentStatus: 'PENDING' },
+              { createdAt: { lt: abandonedBefore } },
+            ],
           },
           OR: [
             {
@@ -112,6 +132,14 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
           },
         },
       })
+
+      // Release lock so retries aren't blocked; DB booking is the source of truth for conflicts
+      await releaseSlot(lockKey)
+      invalidateSlotCache(
+        validated.providerId,
+        validated.serviceId,
+        validated.bookingDate.toISOString().split('T')[0]
+      )
 
       revalidatePath(`/book/${validated.providerId}`)
       return { success: true, booking, lockKey }
@@ -187,6 +215,14 @@ export async function getAvailableSlots(data: {
       return { slots: [] }
     }
 
+    // Check if date is today - need to filter out past times
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    const isToday = selectedDateOnly.getTime() === today.getTime()
+    const currentHour = now.getHours()
+    const currentMinute = now.getMinutes()
+
     staff.forEach(member => {
       member.availability.forEach(av => {
         const [startHour, startMin] = av.startTime.split(':').map(Number)
@@ -201,13 +237,28 @@ export async function getAvailableSlots(data: {
             .toString()
             .padStart(2, '0')}`
 
+          // Filter out past times if booking for today
+          if (isToday) {
+            const slotTimeInMinutes = slotHour * 60 + slotMin
+            const currentTimeInMinutes = currentHour * 60 + currentMinute
+            // Only allow slots that start at least 15 minutes from now
+            if (slotTimeInMinutes <= currentTimeInMinutes + 15) {
+              continue
+            }
+          }
+
           // Check if slot conflicts with existing bookings
           const slotEndMinutes = minutes + service.duration
           const slotEndTime = `${Math.floor(slotEndMinutes / 60)
             .toString()
             .padStart(2, '0')}:${(slotEndMinutes % 60).toString().padStart(2, '0')}`
 
+          // Ignore abandoned PENDING: >30 min, payment never completed (OPay expireAt)
           const hasConflict = member.bookings.some(booking => {
+            if (booking.status === 'PENDING' && booking.paymentStatus === 'PENDING') {
+              const created = new Date(booking.createdAt).getTime()
+              if (Date.now() - created > 30 * 60 * 1000) return false
+            }
             return (
               (timeString >= booking.startTime && timeString < booking.endTime) ||
               (slotEndTime > booking.startTime && slotEndTime <= booking.endTime) ||
@@ -295,16 +346,16 @@ export async function getAvailableDays(data: {
 
         if (dayAvailability.length === 0) continue
 
-        // Check existing bookings for this date
-        const existingBookings = await prisma.booking.findMany({
-          where: {
-            staffId: member.id,
-            bookingDate: checkDate,
-            status: {
-              notIn: ['CANCELLED'],
-            },
-          },
-        })
+            // Check existing bookings for this date
+            const existingBookings = await prisma.booking.findMany({
+              where: {
+                staffId: member.id,
+                bookingDate: checkDate,
+                status: {
+                  notIn: ['CANCELLED'],
+                },
+              },
+            })
 
         // Generate potential slots and check if any are available
         for (const av of dayAvailability) {
@@ -322,8 +373,12 @@ export async function getAvailableDays(data: {
             const slotEndMinutes = minutes + service.duration
             const slotEndTime = `${Math.floor(slotEndMinutes / 60).toString().padStart(2, '0')}:${(slotEndMinutes % 60).toString().padStart(2, '0')}`
 
-            // Check if slot conflicts with existing bookings
+            // Check if slot conflicts with existing bookings (ignore abandoned PENDING: >30 min, payment never completed)
             const hasConflict = existingBookings.some(booking => {
+              if (booking.status === 'PENDING' && booking.paymentStatus === 'PENDING') {
+                const created = new Date(booking.createdAt).getTime()
+                if (Date.now() - created > 30 * 60 * 1000) return false
+              }
               return (
                 (timeString >= booking.startTime && timeString < booking.endTime) ||
                 (slotEndTime > booking.startTime && slotEndTime <= booking.endTime) ||
@@ -386,9 +441,15 @@ export async function initiateOPayCashierPayment(bookingRef: string) {
   const date = booking.bookingDate.toISOString().split('T')[0]
   const time = `${booking.startTime}–${booking.endTime}`
 
+  // Calculate total amount: service price + platform fee (capped at ₦1,000)
+  const servicePrice = Number(booking.service.price)
+  const platformFeePercentage = Number(process.env.PLATFORM_FEE_PERCENTAGE || 10)
+  const platformFee = Math.min(servicePrice * (platformFeePercentage / 100), 1000)
+  const totalAmount = servicePrice + platformFee
+
   const result = await createOPayCashierPayment({
     reference: booking.bookingRef,
-    amountTotalKobo: Math.round(Number(booking.service.price) * 100),
+    amountTotalKobo: Math.round(totalAmount * 100),
     product: { name: booking.service.name, description: `Booking: ${booking.service.name} - ${date} ${time}` },
     returnUrl: `${baseUrl}/book/${booking.providerId}/confirm?ref=${booking.bookingRef}`,
     callbackUrl: `${baseUrl}/api/webhooks/opay`,

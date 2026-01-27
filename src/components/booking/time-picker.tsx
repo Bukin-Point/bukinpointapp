@@ -176,18 +176,35 @@ export function TimePicker({ provider, service, selectedStaff, onSelect, onBack 
                   const isAvailable = availableSlots.some(
                     s => s.time === slot.time && s.staff.id === slot.staff.id
                   )
+                  
+                  // Check if time is in the past (for today's date)
+                  const isPastTime = (() => {
+                    if (!selectedDate) return false
+                    const today = new Date()
+                    const isToday = selectedDate.toDateString() === today.toDateString()
+                    if (!isToday) return false
+                    
+                    const [slotHour, slotMin] = slot.time.split(':').map(Number)
+                    const now = new Date()
+                    const slotTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), slotHour, slotMin)
+                    const minTime = new Date(now.getTime() + 15 * 60 * 1000) // 15 minutes from now
+                    return slotTime < minTime
+                  })()
+                  
+                  const isDisabled = !isAvailable || isPastTime
+                  
                   return (
                     <button
                       key={index}
                       type="button"
-                      onClick={() => isAvailable && onSelect(selectedDate, slot.time, slot.staff)}
-                      disabled={!isAvailable}
+                      onClick={() => !isDisabled && onSelect(selectedDate, slot.time, slot.staff)}
+                      disabled={isDisabled}
                       className={`time-slot rounded-md border-2 p-2 text-sm font-medium transition-colors ${
-                        isAvailable
+                        !isDisabled
                           ? 'border-gray-300 hover:border-primary hover:bg-primary-50 cursor-pointer'
                           : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
                       }`}
-                      title={!isAvailable ? 'This time slot is not available' : ''}
+                      title={isPastTime ? 'Cannot book past times' : !isAvailable ? 'This time slot is not available' : ''}
                     >
                       {slot.time}
                     </button>

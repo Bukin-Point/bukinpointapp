@@ -217,6 +217,18 @@ export async function createManualBooking(data: z.infer<typeof createManualBooki
   try {
     const validated = createManualBookingSchema.parse(data)
 
+    // Prevent booking past times (even in override mode)
+    const now = new Date()
+    const bookingDateTime = new Date(validated.bookingDate)
+    const [hours, minutes] = validated.startTime.split(':').map(Number)
+    bookingDateTime.setHours(hours, minutes, 0, 0)
+    
+    // Require booking to be at least 15 minutes in the future
+    const minBookingTime = new Date(now.getTime() + 15 * 60 * 1000)
+    if (bookingDateTime < minBookingTime) {
+      return { error: 'Cannot book appointments in the past. Please select a future time slot.' }
+    }
+
     // Check if staff can provide this service
     const staffService = await prisma.staffService.findFirst({
       where: {

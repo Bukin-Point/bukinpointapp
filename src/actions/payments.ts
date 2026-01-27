@@ -41,10 +41,16 @@ export async function processPayment(data: z.infer<typeof processPaymentSchema>)
     }
 
     try {
-      const amount = Number(booking.service.price)
-      const platformFee = 100
-      const netAmount = amount >= 100 ? amount - 100 : 0
-      const fee = amount < 100 ? amount : 100
+      // Calculate payment amounts
+      // Customer paid: servicePrice + platformFee
+      // Provider receives: servicePrice (platform fee is separate revenue)
+      // Platform fee is capped at ₦1,000
+      const servicePrice = Number(booking.service.price)
+      const platformFeePercentage = Number(process.env.PLATFORM_FEE_PERCENTAGE || 10)
+      const platformFee = Math.min(servicePrice * (platformFeePercentage / 100), 1000)
+      const totalPaid = servicePrice + platformFee
+      // Provider gets the full service price (platform fee is added on top, not deducted)
+      const netAmount = servicePrice
 
       const transaction = await prisma.$transaction(async (tx) => {
         if (booking.paymentStatus !== 'PAID') {
@@ -57,9 +63,9 @@ export async function processPayment(data: z.infer<typeof processPaymentSchema>)
         const newTransaction = await tx.transaction.create({
           data: {
             bookingId: validated.bookingId,
-            amount,
-            platformFee: fee,
-            netAmount,
+            amount: totalPaid, // Total amount customer paid
+            platformFee: platformFee,
+            netAmount: netAmount, // Provider receives full service price
             paymentProvider: 'OPAY',
             providerRef: booking.paymentRef ?? null,
             status: 'PAID',

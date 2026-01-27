@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { getProviderAccess, canManageStaff } from '@/lib/staff-helpers'
 import { prisma } from '@/lib/db'
 import { BusinessDetailsForm } from '@/components/provider/business-details-form'
+import { BookingLinkShare } from '@/components/provider/booking-link-share'
 import { sanitizeProviderId } from '@/lib/auth-utils'
 import { ProviderContextError } from '@/components/provider/provider-context-error'
 
@@ -55,7 +56,8 @@ export default async function BusinessDetailsPage({
   }
 
   return (
-    <div>
+    <div className="space-y-6">
+      <BookingLinkShare subdomain={provider.subdomain} businessName={provider.businessName} />
       <BusinessDetailsForm provider={provider} />
     </div>
   )
