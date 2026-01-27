@@ -72,7 +72,7 @@ export function BookingLinkShare({ subdomain, businessName }: BookingLinkSharePr
     }
   }
 
-  if (!subdomain) {
+  if (!subdomain || !bookingUrl) {
     return (
       <Card>
         <CardHeader>
@@ -107,7 +107,7 @@ export function BookingLinkShare({ subdomain, businessName }: BookingLinkSharePr
           <div className="flex gap-2">
             <Input
               id="booking-url"
-              value={bookingUrl}
+              value={bookingUrl || ''}
               readOnly
               className="font-mono text-body-sm"
               onClick={(e) => (e.target as HTMLInputElement).select()}
