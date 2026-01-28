@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { getUserTypeAction } from '@/actions/auth'
+import Image from 'next/image'
 
 export function HomeHeader() {
   const { isSignedIn, user } = useUser()
@@ -16,7 +17,7 @@ export function HomeHeader() {
   // Determine dashboard URL based on user type
   useEffect(() => {
     if (isSignedIn && user?.id) {
-      getUserTypeAction(user.id).then((userType) => {
+      getUserTypeAction(user.id).then(userType => {
         if (userType === 'customer') {
           setDashboardUrl('/customer/dashboard')
         } else {
@@ -38,7 +39,7 @@ export function HomeHeader() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo/App Name */}
           <Link href="/" className="flex items-center space-x-2">
-            <span className="text-h3 font-bold">BukinPoint</span>
+            <Image src="/bukin-point-logo.png" alt="BukinPoint" width={120} height={100} />
           </Link>
 
           {/* Navigation Actions */}

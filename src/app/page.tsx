@@ -1,5 +1,4 @@
 import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
 import { ServiceMarketplace } from '@/components/marketplace/service-marketplace'
 import { HomeHeader } from '@/components/marketplace/home-header'
 import { LandingHero } from '@/components/marketplace/landing-hero'
@@ -7,7 +6,6 @@ import { Footer } from '@/components/marketplace/footer'
 import { getMarketplaceServices, getMarketplaceIndustries } from '@/actions/marketplace'
 import { prisma } from '@/lib/db'
 import { ProviderLanding } from '@/components/booking/provider-landing'
-import { getSession } from '@/lib/auth-helpers-clerk'
 
 export const metadata = {
   title: 'BukinPoint - Book Services Online',
@@ -17,13 +15,22 @@ export const metadata = {
 function extractSubdomain(hostname: string): string | null {
   // Remove port if present (e.g., "business-one.bukinpoint.test:3000" -> "business-one.bukinpoint.test")
   const hostWithoutPort = hostname.split(':')[0]
-  
+
   // Handle localhost - no subdomain
   if (hostWithoutPort.includes('localhost') || hostWithoutPort.includes('127.0.0.1')) {
     // Check if it's a subdomain localhost (e.g., "business-one.localhost")
     if (hostWithoutPort.includes('.localhost') && hostWithoutPort.split('.').length >= 3) {
       const subdomain = hostWithoutPort.split('.')[0].toLowerCase()
-      const mainDomains = ['www', 'app', 'api', 'admin', 'dev', 'stage', 'stagging', 'notifications']
+      const mainDomains = [
+        'www',
+        'app',
+        'api',
+        'admin',
+        'dev',
+        'stage',
+        'stagging',
+        'notifications',
+      ]
       if (!mainDomains.includes(subdomain)) {
         return subdomain
       }
@@ -35,7 +42,7 @@ function extractSubdomain(hostname: string): string | null {
   // e.g., "business-one.bukinpoint.test" -> "business-one"
   // e.g., "customer1.epsy.com" -> "customer1"
   const parts = hostWithoutPort.split('.')
-  
+
   // Need at least 2 parts (subdomain.domain) or 3+ for subdomain.domain.tld
   if (parts.length < 2) {
     return null
@@ -49,7 +56,17 @@ function extractSubdomain(hostname: string): string | null {
     if ((isTest || isLocalhost) && parts.length >= 3) {
       // Has subdomain: subdomain.bukinpoint.test
       const subdomain = parts[0].toLowerCase()
-      const mainDomains = ['www', 'app', 'api', 'admin', 'dev', 'stage', 'stagging', 'notifications', 'bukinpoint']
+      const mainDomains = [
+        'www',
+        'app',
+        'api',
+        'admin',
+        'dev',
+        'stage',
+        'stagging',
+        'notifications',
+        'bukinpoint',
+      ]
       if (mainDomains.includes(subdomain)) {
         return null
       }
@@ -66,7 +83,7 @@ function extractSubdomain(hostname: string): string | null {
   if (mainDomains.includes(subdomain)) {
     return null
   }
-  
+
   // If we have multiple parts and first part is not a main domain, it's likely a subdomain
   // But we need to distinguish between "bukinpoint.com" (no subdomain) and "subdomain.bukinpoint.com" (has subdomain)
   // If parts.length === 2, it's likely the main domain (e.g., "bukinpoint.com")
@@ -82,15 +99,14 @@ export default async function HomePage() {
   const headersList = await headers()
   const hostname = headersList.get('host') || ''
   const providerIdFromHeader = headersList.get('x-provider-id')
-  
+
   // Extract subdomain from hostname
   const subdomain = extractSubdomain(hostname)
 
   // If we have a subdomain or provider ID from middleware, check if it's a valid provider
+  let provider = null
   if (subdomain || providerIdFromHeader) {
     try {
-      let provider = null
-
       if (providerIdFromHeader) {
         // Use provider ID from middleware header
         provider = await prisma.provider.findUnique({
@@ -144,36 +160,34 @@ export default async function HomePage() {
           },
         })
       }
-
-      // If provider exists and is active, show provider landing page
-      if (provider && provider.status === 'ACTIVE') {
-        const session = await getSession()
-
-        // Serialize Decimal fields to numbers for client component
-        const serializedProvider = {
-          ...provider,
-          services: provider.services.map(service => ({
-            ...service,
-            price: Number(service.price),
-          })),
-          staff: provider.staff.map(staff => ({
-            ...staff,
-            services: staff.services.map(staffService => ({
-              ...staffService,
-              service: {
-                ...staffService.service,
-                price: Number(staffService.service.price),
-              },
-            })),
-          })),
-        }
-
-        return <ProviderLanding provider={serializedProvider} />
-      }
     } catch (error) {
       console.error('Error checking subdomain:', error)
       // Fall through to show marketplace
     }
+  }
+
+  // If provider exists and is active, show provider landing page
+  if (provider && provider.status === 'ACTIVE') {
+    // Serialize Decimal fields to numbers for client component
+    const serializedProvider = {
+      ...provider,
+      services: provider.services.map(service => ({
+        ...service,
+        price: Number(service.price),
+      })),
+      staff: provider.staff.map(staff => ({
+        ...staff,
+        services: staff.services.map(staffService => ({
+          ...staffService,
+          service: {
+            ...staffService.service,
+            price: Number(staffService.service.price),
+          },
+        })),
+      })),
+    }
+
+    return <ProviderLanding provider={serializedProvider} />
   }
 
   // Show marketplace homepage for main domain or invalid subdomains
