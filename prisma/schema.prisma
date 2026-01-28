@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,9 +12,11 @@ datasource db {
 
 model User {
   id            String   @id @default(cuid())
+  clerkUserId   String?  @unique // Clerk user ID - links to Clerk authentication
   email         String   @unique
   emailVerified Boolean  @default(false)
   name          String?
+  // phone         String?  // Optional phone number for customers - uncomment after migration
   image         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -24,8 +25,10 @@ model User {
   staffMemberships StaffMember[]
   sessions         Session[]
   accounts         Account[]
+  bookings         Booking[]
 
   @@index([email])
+  @@index([clerkUserId])
   @@map("user")
 }
 
@@ -55,21 +58,24 @@ model Provider {
   id           String         @id @default(cuid())
   userId       String         @unique
   businessName String
+  subdomain    String?        @unique
   industry     String
   address      String?
   phone        String
   email        String
   timezone     String         @default("Africa/Lagos")
+  businessImage String?       // Optional business image URL
   status       ProviderStatus @default(ACTIVE)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   services     Service[]
   staff        StaffMember[]
   bookings     Booking[]
   availability Availability[]
   wallet       Wallet?
+  invitations  StaffInvitation[]
 
   @@index([status])
   @@index([userId])
@@ -90,6 +96,7 @@ model Service {
   providerId  String
   name        String
   description String?
+  image       String?  // Optional service image URL
   duration    Int // minutes
   price       Decimal  @db.Decimal(10, 2)
   isActive    Boolean  @default(true)
@@ -145,6 +152,29 @@ model StaffService {
 }
 
 // ============================================
+// STAFF INVITATIONS
+// ============================================
+
+model StaffInvitation {
+  id         String    @id @default(cuid())
+  providerId String
+  email      String
+  token      String    @unique
+  role       StaffRole @default(STAFF)
+  serviceIds String    @default("[]") // JSON array of service IDs
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([email])
+  @@index([providerId])
+}
+
+// ============================================
 // AVAILABILITY
 // ============================================
 
@@ -177,6 +207,7 @@ model Booking {
   providerId    String
   serviceId     String
   staffId       String
+  userId        String? // Optional: link to customer account
   customerName  String
   customerPhone String
   customerEmail String?
@@ -194,12 +225,14 @@ model Booking {
   provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
   service     Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   staff       StaffMember  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
   transaction Transaction?
 
   @@index([providerId, bookingDate, status])
   @@index([staffId, bookingDate])
   @@index([bookingRef])
   @@index([customerPhone])
+  @@index([userId])
 }
 
 enum BookingStatus {
@@ -241,8 +274,8 @@ model Transaction {
 model Wallet {
   id             String    @id @default(cuid())
   providerId     String    @unique
-  balance        Decimal   @db.Decimal(10, 2) @default(0)
-  totalEarnings  Decimal   @db.Decimal(10, 2) @default(0)
+  balance        Decimal   @default(0) @db.Decimal(10, 2)
+  totalEarnings  Decimal   @default(0) @db.Decimal(10, 2)
   lastSettlement DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt

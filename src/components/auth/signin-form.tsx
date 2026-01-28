@@ -1,29 +1,43 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { signIn, useSession } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Eye, EyeOff } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
+import { acceptInvitationAfterSignup } from '@/actions/staff-invitations'
+import { getPostSigninRedirectUrl } from '@/actions/auth'
+import { validateRedirectUrl } from '@/lib/auth-utils'
 
-export function SignInForm() {
+interface SignInFormProps {
+  initialEmail?: string
+  invitationToken?: string
+}
+
+export function SignInForm({ initialEmail, invitationToken }: SignInFormProps) {
   const router = useRouter()
   const { data: session } = useSession()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const { toast } = useToast()
+  const signInClient = signIn()
+  // Set default email and password in dev environment
+  const isDev = typeof process !== 'undefined' && process.env.NODE_ENV === 'development'
+  const [email, setEmail] = useState(isDev ? 'sholajapheth@gmail.com' : initialEmail || '')
+  const [password, setPassword] = useState(isDev ? 'samplepassword' : '')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
-  // Redirect if already signed in (use useEffect to avoid render-time navigation)
-  useEffect(() => {
-    if (session) {
-      router.push('/dashboard')
-    }
-  }, [session, router])
+  // Removed handlePostSigninRedirect function and useEffect per user request
+  // Redirects are now handled directly in onSuccess callback using server action getPostSigninRedirectUrl
 
   // Don't render form if already signed in
   if (session) {
@@ -32,11 +46,10 @@ export function SignInForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
     setLoading(true)
 
     try {
-      await signIn.email(
+      await signInClient.email(
         {
           email,
           password,
@@ -48,18 +61,135 @@ export function SignInForm() {
           onResponse: () => {
             setLoading(false)
           },
-          onError: (ctx) => {
-            setError(ctx.error.message || 'Failed to sign in')
+          onError: ctx => {
+            const errorMessage = ctx.error.message || 'Failed to sign in'
+            const isInvalidCredentials =
+              errorMessage.toLowerCase().includes('invalid') ||
+              errorMessage.toLowerCase().includes('password') ||
+              errorMessage.toLowerCase().includes('credentials') ||
+              ctx.error.status === 401
+
+            if (isInvalidCredentials) {
+              toast({
+                title: 'Invalid Credentials',
+                description: 'The email or password you entered is incorrect. Please try again.',
+                // variant: 'destructive', // Remove variant for lint
+              })
+            } else {
+              toast({
+                title: 'Sign In Failed',
+                description: errorMessage,
+                // variant: 'destructive',
+              })
+            }
             setLoading(false)
           },
-          onSuccess: () => {
-            router.push('/dashboard')
-            router.refresh()
+          onSuccess: async () => {
+            // #region agent log
+            fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                location: 'signin-form.tsx:452',
+                message: 'onSuccess callback triggered',
+                data: { 
+                  hasInvitationToken: !!invitationToken, 
+                  currentUrl: window.location.href,
+                  currentHostname: window.location.hostname,
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'C',
+              }),
+            }).catch(() => {})
+            // #endregion
+
+            // If there's an invitation token, redirect to accept it
+            if (invitationToken) {
+              // #region agent log
+              fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  location: 'signin-form.tsx:469',
+                  message: 'Redirecting to accept invitation',
+                  data: { invitationToken },
+                  timestamp: Date.now(),
+                  sessionId: 'debug-session',
+                  runId: 'run1',
+                  hypothesisId: 'C',
+                }),
+              }).catch(() => {})
+              // #endregion
+              router.push(`/signin/accept-invitation?token=${invitationToken}`)
+              return
+            }
+
+            toast({
+              title: 'Welcome Back!',
+              description: 'You have been successfully signed in.',
+            })
+
+            // Use server action to get redirect URL (no polling, no useEffect)
+            // Server action reads session from cookies/headers
+            try {
+              const redirectUrl = await getPostSigninRedirectUrl()
+              
+              // #region agent log
+              fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  location: 'signin-form.tsx:495',
+                  message: 'Redirect URL from server action',
+                  data: { redirectUrl, isFullUrl: redirectUrl?.startsWith('http') },
+                  timestamp: Date.now(),
+                  sessionId: 'debug-session',
+                  runId: 'run1',
+                  hypothesisId: 'C',
+                }),
+              }).catch(() => {})
+              // #endregion
+
+              if (redirectUrl) {
+                // SECURITY: Validate URL before redirect
+                if (redirectUrl.startsWith('http://') || redirectUrl.startsWith('https://')) {
+                  if (validateRedirectUrl(redirectUrl)) {
+                    // Double-check the URL doesn't end with /signin
+                    const urlObj = new URL(redirectUrl)
+                    if (urlObj.pathname === '/signin') {
+                      urlObj.pathname = '/dashboard'
+                      window.location.href = urlObj.toString()
+                    } else {
+                      window.location.href = redirectUrl
+                    }
+                  } else {
+                    // Security validation failed - fallback
+                    router.push('/dashboard')
+                  }
+                } else {
+                  // Path - use router
+                  router.push(redirectUrl)
+                }
+              } else {
+                // Fallback if server action returns null
+                router.push('/dashboard')
+              }
+            } catch (error) {
+              console.error('Error getting redirect URL:', error)
+              // Fallback on error
+              router.push('/dashboard')
+            }
           },
         }
       )
     } catch (err) {
-      setError('An unexpected error occurred')
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred. Please try again.',
+        // variant: 'destructive',
+      })
       setLoading(false)
     }
   }
@@ -72,11 +202,6 @@ export function SignInForm() {
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          {error && (
-            <div className="rounded-md bg-error-light p-3 text-sm text-error">
-              {error}
-            </div>
-          )}
           <div className="space-y-2">
             <label htmlFor="email" className="text-body-sm font-medium">
               Email
@@ -86,9 +211,10 @@ export function SignInForm() {
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               required
               disabled={loading}
+              autoComplete={isDev ? 'username' : undefined}
             />
           </div>
           <div className="space-y-2">
@@ -101,10 +227,11 @@ export function SignInForm() {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={e => setPassword(e.target.value)}
                 required
                 disabled={loading}
                 className="pr-10"
+                autoComplete={isDev ? 'current-password' : undefined}
               />
               <button
                 type="button"
@@ -113,11 +240,7 @@ export function SignInForm() {
                 disabled={loading}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>

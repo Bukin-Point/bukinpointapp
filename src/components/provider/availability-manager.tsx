@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { StaffMember, Availability } from '@prisma/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AvailabilityForm } from '@/components/provider/availability-form'
+import { BulkAvailabilityForm } from '@/components/provider/bulk-availability-form'
+import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 
 type StaffWithAvailability = StaffMember & {
@@ -19,6 +21,7 @@ interface AvailabilityManagerProps {
   staff: StaffWithAvailability[]
   providerId: string
   timezone: string
+  canManage?: boolean
 }
 
 const DAYS_OF_WEEK = [
@@ -31,18 +34,21 @@ const DAYS_OF_WEEK = [
   { value: 6, label: 'Saturday' },
 ]
 
-export function AvailabilityManager({ staff, providerId, timezone }: AvailabilityManagerProps) {
+export function AvailabilityManager({ staff, providerId, timezone, canManage = true }: AvailabilityManagerProps) {
   const [selectedStaff, setSelectedStaff] = useState<StaffWithAvailability | null>(
     staff[0] || null
   )
   const [showForm, setShowForm] = useState(false)
+  const [formMode, setFormMode] = useState<'single' | 'bulk'>('bulk')
 
   if (staff.length === 0) {
     return (
       <Card>
         <CardContent className="py-12 text-center">
           <p className="text-body-sm text-text-secondary">
-            No staff members available. Add staff members first.
+            {canManage
+              ? 'No staff members available. Add staff members first.'
+              : 'No availability set yet.'}
           </p>
         </CardContent>
       </Card>
@@ -56,55 +62,84 @@ export function AvailabilityManager({ staff, providerId, timezone }: Availabilit
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Select Staff Member</CardTitle>
-          <CardDescription>Choose a staff member to manage their availability</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {staff.map((member) => (
-              <button
-                key={member.id}
-                onClick={() => {
-                  setSelectedStaff(member)
-                  setShowForm(false)
-                }}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                  selectedStaff?.id === member.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                }`}
-              >
-                {member.user.name || member.user.email}
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {canManage && staff.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Select Staff Member</CardTitle>
+            <CardDescription>Choose a staff member to manage their availability</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {staff.map((member) => (
+                <button
+                  key={member.id}
+                  onClick={() => {
+                    setSelectedStaff(member)
+                    setShowForm(false)
+                  }}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                    selectedStaff?.id === member.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                  }`}
+                >
+                  {member.user.name || member.user.email}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {selectedStaff && (
         <>
-          <div className="flex justify-end">
-            <button
-              onClick={() => setShowForm(true)}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-600"
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFormMode('bulk')
+                setShowForm(true)
+              }}
             >
-              Add Availability
-            </button>
+              Add Bulk Availability
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFormMode('single')
+                setShowForm(true)
+              }}
+            >
+              Add Single Day
+            </Button>
           </div>
 
           {showForm && (
-            <AvailabilityForm
-              staffId={selectedStaff.id}
-              providerId={providerId}
-              existingAvailability={selectedStaff.availability}
-              onSuccess={() => {
-                setShowForm(false)
-                window.location.reload()
-              }}
-              onCancel={() => setShowForm(false)}
-            />
+            <>
+              {formMode === 'bulk' ? (
+                <BulkAvailabilityForm
+                  staffId={selectedStaff.id}
+                  providerId={providerId}
+                  existingAvailability={selectedStaff.availability}
+                  onSuccess={() => {
+                    setShowForm(false)
+                    window.location.reload()
+                  }}
+                  onCancel={() => setShowForm(false)}
+                />
+              ) : (
+                <AvailabilityForm
+                  staffId={selectedStaff.id}
+                  providerId={providerId}
+                  existingAvailability={selectedStaff.availability}
+                  onSuccess={() => {
+                    setShowForm(false)
+                    window.location.reload()
+                  }}
+                  onCancel={() => setShowForm(false)}
+                />
+              )}
+            </>
           )}
 
           <Card>

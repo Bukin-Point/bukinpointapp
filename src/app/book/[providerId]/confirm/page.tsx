@@ -36,6 +36,9 @@ async function BookingConfirmationWrapper({
 
 async function BookingConfirmationContent({ bookingRef }: { bookingRef: string }) {
   const { prisma } = await import('@/lib/db')
+  const { getSession } = await import('@/lib/auth-helpers-clerk')
+
+  const session = await getSession()
 
   const booking = await prisma.booking.findUnique({
     where: { bookingRef },
@@ -69,5 +72,14 @@ async function BookingConfirmationContent({ bookingRef }: { bookingRef: string }
     )
   }
 
-  return <BookingConfirmation booking={booking} />
+  // Serialize Decimal fields to numbers for client component
+  const serializedBooking = {
+    ...booking,
+    service: {
+      ...booking.service,
+      price: Number(booking.service.price),
+    },
+  }
+
+  return <BookingConfirmation booking={serializedBooking} session={session} />
 }

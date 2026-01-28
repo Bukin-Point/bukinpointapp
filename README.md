@@ -48,6 +48,25 @@ cp .env.example .env
 Edit `.env` with your configuration. See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for detailed instructions.
 - `DATABASE_URL`: PostgreSQL connection string
 - `REDIS_URL`: Redis connection string
+
+4. **Optional - Set up DNSMasq for local subdomain development:**
+
+   If you want to test subdomain functionality locally (e.g., `thank-god.bukinpoint.local:3000`), set up DNSMasq:
+   
+   ```bash
+   # Run the automated setup script
+   ./scripts/setup-dnsmasq.sh
+   ```
+   
+   Or follow the manual setup in [DNSMASQ_SETUP.md](./DNSMASQ_SETUP.md).
+   
+   After setup, update your `.env`:
+   ```env
+   BETTER_AUTH_URL=http://bukinpoint.local:3000
+   NEXT_PUBLIC_APP_URL=http://bukinpoint.local:3000
+   ```
+   
+   **Note**: If you don't need subdomain testing, you can skip this step and use `localhost:3000` instead.
 - `BETTER_AUTH_SECRET`: Secret key (min 32 characters)
 - `BETTER_AUTH_URL`: Your app URL (e.g., http://localhost:3000)
 - `NEXT_PUBLIC_APP_URL`: Public app URL (see configuration guide below)
@@ -154,6 +173,26 @@ See [E2E_TESTING_CHECKLIST.md](./E2E_TESTING_CHECKLIST.md) for a comprehensive l
 ## Environment Variables
 
 See [ENV_SETUP.md](./ENV_SETUP.md) for detailed information about configuring environment variables, especially `NEXT_PUBLIC_APP_URL`.
+
+## Documentation
+
+Comprehensive documentation is available in the [`docs/`](./docs/) directory:
+
+- **[Documentation Index](./docs/README.md)** - Overview and navigation
+- **[Architecture](./docs/ARCHITECTURE.md)** - System architecture and design
+- **[Features](./docs/features/)** - Feature documentation
+- **[Process Flows](./docs/flows/)** - Step-by-step flow diagrams
+- **[Technical Docs](./docs/technical/)** - Implementation details
+- **[User Guides](./docs/guides/)** - End-user documentation
+- **[Development](./docs/development/)** - Contributing and deployment
+
+### Quick Links
+
+- [Authentication](./docs/features/authentication.md) - Signup, signin, roles
+- [Booking Flow](./docs/flows/booking-flow.md) - Complete booking process
+- [Staff Management](./docs/features/staff-management.md) - Staff invitations and permissions
+- [Database Schema](./docs/technical/database-schema.md) - Complete schema documentation
+- [Permissions](./docs/technical/permissions.md) - Role-based access control
 
 ## License
 

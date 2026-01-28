@@ -1,12 +1,16 @@
 'use client'
 
-import { Service } from '@prisma/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
+// Serialized Service type with price as number instead of Decimal
+type SerializedService = Omit<import('@prisma/client').Service, 'price'> & {
+  price: number
+}
+
 interface ServiceSelectorProps {
-  services: Service[]
-  onSelect: (service: Service) => void
+  services: SerializedService[]
+  onSelect: (service: SerializedService) => void
 }
 
 export function ServiceSelector({ services, onSelect }: ServiceSelectorProps) {
@@ -52,7 +56,7 @@ export function ServiceSelector({ services, onSelect }: ServiceSelectorProps) {
                     <div className="flex items-center gap-2">
                       <span className="text-text-secondary">Price:</span>
                       <span className="font-medium">
-                        ₦{Number(service.price).toLocaleString()}
+                        ₦{service.price.toLocaleString()}
                       </span>
                     </div>
                   </div>

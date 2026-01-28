@@ -26,66 +26,61 @@ export async function processPayment(data: z.infer<typeof processPaymentSchema>)
       return { error: 'Booking not found' }
     }
 
-    if (booking.paymentStatus === 'PAID') {
-      return { error: 'Booking is already paid' }
+    // Idempotent: if Transaction already exists, return success
+    const existing = await prisma.transaction.findUnique({
+      where: { bookingId: validated.bookingId },
+    })
+    if (existing) {
+      return { success: true, transaction: existing }
     }
 
-    // Create lock key
     const lockKey = `booking:${validated.bookingId}:payment`
-
-    // Try to acquire lock
-    const lockAcquired = await lockSlot(lockKey, 300) // 5 minutes
-
+    const lockAcquired = await lockSlot(lockKey, 300)
     if (!lockAcquired) {
       return { error: 'Payment is already being processed' }
     }
 
     try {
-      // Simulate payment processing
-      // In production, this would integrate with a payment gateway
-      const platformFeePercentage = parseFloat(process.env.PLATFORM_FEE_PERCENTAGE || '10')
-      const amount = Number(booking.service.price)
-      const platformFee = (amount * platformFeePercentage) / 100
-      const netAmount = amount - platformFee
+      // Calculate payment amounts
+      // Customer paid: servicePrice + platformFee
+      // Provider receives: servicePrice (platform fee is separate revenue)
+      // Platform fee is capped at ₦1,000
+      const servicePrice = Number(booking.service.price)
+      const platformFeePercentage = Number(process.env.PLATFORM_FEE_PERCENTAGE || 10)
+      const platformFee = Math.min(servicePrice * (platformFeePercentage / 100), 1000)
+      const totalPaid = servicePrice + platformFee
+      // Provider gets the full service price (platform fee is added on top, not deducted)
+      const netAmount = servicePrice
 
-      // Create transaction
       const transaction = await prisma.$transaction(async (tx) => {
-        // Update booking payment status
-        const updatedBooking = await tx.booking.update({
-          where: { id: validated.bookingId },
-          data: {
-            paymentStatus: 'PAID',
-            paymentRef: `PAY-${Date.now()}`,
-          },
-        })
+        if (booking.paymentStatus !== 'PAID') {
+          await tx.booking.update({
+            where: { id: validated.bookingId },
+            data: { paymentStatus: 'PAID', paymentRef: `PAY-${Date.now()}` },
+          })
+        }
 
-        // Create transaction record
         const newTransaction = await tx.transaction.create({
           data: {
             bookingId: validated.bookingId,
-            amount,
-            platformFee,
-            netAmount,
-            paymentProvider: 'SIMULATED',
-            providerRef: `PROV-${Date.now()}`,
+            amount: totalPaid, // Total amount customer paid
+            platformFee: platformFee,
+            netAmount: netAmount, // Provider receives full service price
+            paymentProvider: 'OPAY',
+            providerRef: booking.paymentRef ?? null,
             status: 'PAID',
           },
         })
 
-        // Update wallet
         await tx.wallet.update({
           where: { providerId: booking.providerId },
           data: {
-            balance: {
-              increment: netAmount,
-            },
-            totalEarnings: {
-              increment: netAmount,
-            },
+            balance: { increment: netAmount },
+            totalEarnings: { increment: netAmount },
           },
         })
 
-        return { booking: updatedBooking, transaction: newTransaction }
+        return { transaction: newTransaction }
       })
 
       // Release lock
@@ -102,7 +97,7 @@ export async function processPayment(data: z.infer<typeof processPaymentSchema>)
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message }
+      return { error: error.issues[0]?.message || 'Validation error' }
     }
     console.error('Error processing payment:', error)
     return { error: 'Failed to process payment' }

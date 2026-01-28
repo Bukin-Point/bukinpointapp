@@ -39,3 +39,51 @@ export async function isSlotLocked(key: string): Promise<boolean> {
     return false
   }
 }
+
+// Cache helper functions for time slots
+export async function getCachedSlots(key: string): Promise<any[] | null> {
+  try {
+    const cached = await redis.get(key)
+    if (cached) {
+      return JSON.parse(cached)
+    }
+    return null
+  } catch (error) {
+    console.error('Error getting cached slots:', error)
+    return null
+  }
+}
+
+export async function setCachedSlots(key: string, slots: any[], ttl: number = 600): Promise<void> {
+  try {
+    await redis.setex(key, ttl, JSON.stringify(slots))
+  } catch (error) {
+    console.error('Error setting cached slots:', error)
+  }
+}
+
+export async function invalidateSlotCache(providerId: string, serviceId?: string, date?: string): Promise<void> {
+  try {
+    if (serviceId && date) {
+      // Invalidate specific cache
+      const key = `slots:${providerId}:${serviceId}:${date}`
+      await redis.del(key)
+    } else if (serviceId) {
+      // Invalidate all caches for this service
+      const pattern = `slots:${providerId}:${serviceId}:*`
+      const keys = await redis.keys(pattern)
+      if (keys.length > 0) {
+        await redis.del(...keys)
+      }
+    } else {
+      // Invalidate all caches for this provider
+      const pattern = `slots:${providerId}:*`
+      const keys = await redis.keys(pattern)
+      if (keys.length > 0) {
+        await redis.del(...keys)
+      }
+    }
+  } catch (error) {
+    console.error('Error invalidating slot cache:', error)
+  }
+}
