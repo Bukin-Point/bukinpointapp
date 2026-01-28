@@ -68,7 +68,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   } else {
     // Handle .test domains and production domains
     const parts = hostWithoutPort.split('.')
-    
+
     // Need at least 2 parts
     if (parts.length < 2) {
       return NextResponse.next()
@@ -98,7 +98,17 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   }
 
   // Skip main domains and reserved subdomains (following Grok's pattern)
-  const mainDomains = ['www', 'app', 'api', 'admin', 'dev', 'stage', 'stagging', 'notifications', 'bukinpoint']
+  const mainDomains = [
+    'www',
+    'app',
+    'api',
+    'admin',
+    'dev',
+    'stage',
+    'stagging',
+    'notifications',
+    'bukinpoint',
+  ]
   if (!subdomain || mainDomains.includes(subdomain)) {
     return NextResponse.next()
   }
@@ -188,16 +198,16 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
 })
 
 export const config = {
-  // Apply to all paths except static files and Next.js internals (following Grok's pattern)
+  // Apply to all paths except static files and Next.js internals.
+  // API routes MUST be included so Clerk middleware runs and auth() works in route handlers (e.g. /api/upload).
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
+     * Match all request paths except:
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (images, etc.)
+     * - favicon.ico
+     * - public file extensions (images, fonts, etc.)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot)).*)',
   ],
 }
