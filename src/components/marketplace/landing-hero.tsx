@@ -11,15 +11,15 @@ export function LandingHero() {
         <div className="mx-auto max-w-4xl text-center">
           {/* Main Heading */}
           <h1 className="text-h1 mb-6 font-bold tracking-tight sm:text-5xl lg:text-6xl">
-            Book Services Online
+            Booking Services Online
             <br />
             <span className="text-primary">Made Simple</span>
           </h1>
-          
+
           {/* Subheading */}
           <p className="mb-8 text-lg text-text-secondary sm:text-xl lg:text-2xl">
-            Discover trusted service providers in your area. Book appointments instantly, 
-            manage your schedule, and get the services you need—all in one place.
+            Discover trusted service providers in your area. Book appointments instantly, manage
+            your schedule, and get the services you need all in one place.
           </p>
 
           {/* CTA Buttons */}
@@ -31,9 +31,7 @@ export function LandingHero() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
-              <Link href="/signup?type=provider">
-                Become a Provider
-              </Link>
+              <Link href="/signup?type=provider">Become a Provider</Link>
             </Button>
           </div>
 
@@ -48,17 +46,15 @@ export function LandingHero() {
                 Book appointments in just a few clicks
               </p>
             </div>
-            
+
             <div className="flex flex-col items-center text-center">
               <div className="mb-4 rounded-full bg-primary/10 p-4">
                 <Clock className="h-6 w-6 text-primary" />
               </div>
               <h3 className="mb-2 text-h4 font-semibold">Real-Time Availability</h3>
-              <p className="text-body-sm text-text-secondary">
-                See available slots instantly
-              </p>
+              <p className="text-body-sm text-text-secondary">See available slots instantly</p>
             </div>
-            
+
             <div className="flex flex-col items-center text-center">
               <div className="mb-4 rounded-full bg-primary/10 p-4">
                 <Users className="h-6 w-6 text-primary" />
@@ -68,7 +64,7 @@ export function LandingHero() {
                 Verified businesses and professionals
               </p>
             </div>
-            
+
             <div className="flex flex-col items-center text-center">
               <div className="mb-4 rounded-full bg-primary/10 p-4">
                 <Shield className="h-6 w-6 text-primary" />
