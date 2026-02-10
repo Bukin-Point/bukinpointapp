@@ -55,19 +55,20 @@ model Session {
 // ============================================
 
 model Provider {
-  id           String         @id @default(cuid())
-  userId       String         @unique
-  businessName String
-  subdomain    String?        @unique
-  industry     String
-  address      String?
-  phone        String
-  email        String
-  timezone     String         @default("Africa/Lagos")
-  businessImage String?       // Optional business image URL
-  status       ProviderStatus @default(ACTIVE)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id              String          @id @default(cuid())
+  userId          String         @unique
+  businessName    String
+  subdomain       String?        @unique
+  industry        String
+  address         String?
+  phone           String
+  email           String
+  timezone        String         @default("Africa/Lagos")
+  businessImage   String?        // Optional business image URL
+  status          ProviderStatus @default(ACTIVE)
+  paymentGateway  PaymentGateway? // Optional per-provider override; null = use global default
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   services     Service[]
@@ -85,6 +86,12 @@ enum ProviderStatus {
   ACTIVE
   SUSPENDED
   INACTIVE
+}
+
+// Payment gateway choice: global default and optional per-provider override
+enum PaymentGateway {
+  OPAY
+  PAYSTACK
 }
 
 // ============================================
@@ -281,6 +288,13 @@ model Wallet {
   updatedAt      DateTime  @updatedAt
 
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+}
+
+// Global payment gateway configuration (single row; default = OPAY)
+model PaymentConfig {
+  id             String        @id @default(cuid())
+  currentGateway PaymentGateway @default(OPAY)
+  updatedAt      DateTime      @updatedAt
 }
 
 model Account {

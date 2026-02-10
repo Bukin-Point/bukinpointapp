@@ -80,6 +80,12 @@ OPAY_MERCHANT_ID="256612345678901"
 OPAY_PRIVATE_KEY="OPAYPRV..."  # From OPay dashboard (Secret Key); used for webhook HMAC-SHA3-512 verification only
 OPAY_BASE_URL="https://testapi.opaycheckout.com"  # Staging. Production: https://liveapi.opaycheckout.com
 
+# Paystack (alternative payment gateway; switch via DB or admin UI)
+PAYSTACK_SECRET_KEY="sk_test_..."       # Test: sk_test_... | Live: sk_live_...
+PAYSTACK_PUBLIC_KEY="pk_test_..."       # Optional; for client-side if needed
+PAYSTACK_BASE_URL="https://api.paystack.co"  # Same for test and live
+PAYSTACK_WEBHOOK_SECRET="whsec_..."     # Optional; if set, webhook verification uses this instead of secret key
+
 # Production Domain Configuration (for subdomain redirects)
 # Only needed if using subdomain redirects after authentication
 # ALLOWED_REDIRECT_DOMAINS="bukinpoint.com"  # Optional: Explicit whitelist for redirect validation
@@ -145,6 +151,29 @@ CLOUDFLARE_R2_PUBLIC_URL="https://pub-xxxxx.r2.dev"  # Or custom domain: https:/
 4. **Development vs Production**: Use different values for each environment
 
 5. **Never commit .env files**: They're in `.gitignore` for a reason!
+
+---
+
+## Payment gateways (OPay & Paystack)
+
+The app supports **OPay** and **Paystack**. The active gateway is stored in the database (global default, with optional per-provider override). You only need to set env vars for the gateway(s) you use.
+
+### Switching gateways
+
+- **Global default**: Set in the database table `PaymentConfig` (single row, `currentGateway`: `OPAY` or `PAYSTACK`). You can change it via the provider/settings payments UI or by running a one-off update (e.g. Prisma or SQL).
+- **Per-provider override**: On the `Provider` model, optional field `paymentGateway` (null = use global default). Use the settings UI or DB to set `OPAY` or `PAYSTACK` for a specific provider.
+- **Environment**: Keep OPay vars for OPay; add Paystack vars when you enable Paystack. If the selected gateway is not configured (missing keys), the "Initialize payment" flow will return an error.
+
+### Paystack (test vs live)
+
+- **Test**: `PAYSTACK_SECRET_KEY=sk_test_...`, `PAYSTACK_BASE_URL=https://api.paystack.co` (same URL).
+- **Live**: Use `sk_live_...` and the same `PAYSTACK_BASE_URL`. In the Paystack dashboard you choose test/live mode; the key determines which environment is used.
+- **Webhook**: Configure your webhook URL in Paystack dashboard to `https://your-domain.com/api/webhooks/paystack`. Use `PAYSTACK_WEBHOOK_SECRET` if you set a secret in the dashboard (recommended for production).
+
+### OPay (test vs live)
+
+- **Test**: `OPAY_BASE_URL="https://testapi.opaycheckout.com"` with test keys.
+- **Live**: `OPAY_BASE_URL="https://liveapi.opaycheckout.com"` with live keys from the OPay dashboard.
 
 ---
 

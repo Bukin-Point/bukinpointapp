@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
-import { OPayGateway } from '@/lib/payments/opay-gateway'
+import { PaystackGateway } from '@/lib/payments/paystack-gateway'
 import { fulfillPaymentSuccess } from '@/lib/payments/fulfill-payment'
 import { PaymentGateway } from '@prisma/client'
 
-const opayGateway = new OPayGateway()
+const paystackGateway = new PaystackGateway()
 
 export async function POST(request: Request) {
   let rawBody: string
@@ -13,26 +13,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
 
-  let body: { payload?: unknown; sha512?: string }
-  try {
-    body = JSON.parse(rawBody) as { payload?: unknown; sha512?: string }
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
+  const signature = request.headers.get('x-paystack-signature') ?? null
+  const result = paystackGateway.handleWebhook(rawBody, signature)
 
-  const result = opayGateway.handleWebhook(rawBody, body.sha512 ?? null)
   if (!result.valid) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  if (!result.success || result.refunded || !result.reference) {
+  if (!result.success || !result.reference) {
     return NextResponse.json({ ok: true })
   }
 
   await fulfillPaymentSuccess({
     reference: result.reference,
     transactionId: result.transactionId,
-    gatewayName: PaymentGateway.OPAY,
+    gatewayName: PaymentGateway.PAYSTACK,
   })
 
   return NextResponse.json({ ok: true })

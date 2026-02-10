@@ -2,16 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2 } from 'lucide-react'
+import { Building2, CreditCard } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
 const settingsNavItems = [
   { href: '/settings/business', label: 'Business Details', icon: Building2 },
-  // Future settings pages can be added here:
-  // { href: '/settings/profile', label: 'Profile', icon: User },
-  // { href: '/settings/notifications', label: 'Notifications', icon: Bell },
-  // { href: '/settings/security', label: 'Security', icon: Shield },
-  // { href: '/settings/billing', label: 'Billing', icon: CreditCard },
+  { href: '/settings/payments', label: 'Payments', icon: CreditCard },
 ]
 
 export function SettingsNav() {

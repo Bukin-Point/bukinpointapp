@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { redis, lockSlot, releaseSlot } from '@/lib/redis'
+import { getCurrentGatewayForProvider } from '@/lib/payment-config'
 import { z } from 'zod'
 
 const processPaymentSchema = z.object({
@@ -52,11 +53,13 @@ export async function processPayment(data: z.infer<typeof processPaymentSchema>)
       // Provider gets the full service price (platform fee is added on top, not deducted)
       const netAmount = servicePrice
 
+      const gatewayName = await getCurrentGatewayForProvider(booking.providerId)
+
       const transaction = await prisma.$transaction(async (tx) => {
         if (booking.paymentStatus !== 'PAID') {
           await tx.booking.update({
             where: { id: validated.bookingId },
-            data: { paymentStatus: 'PAID', paymentRef: `PAY-${Date.now()}` },
+            data: { paymentStatus: 'PAID', paymentRef: booking.paymentRef ?? `PAY-${Date.now()}` },
           })
         }
 
@@ -66,7 +69,7 @@ export async function processPayment(data: z.infer<typeof processPaymentSchema>)
             amount: totalPaid, // Total amount customer paid
             platformFee: platformFee,
             netAmount: netAmount, // Provider receives full service price
-            paymentProvider: 'OPAY',
+            paymentProvider: gatewayName,
             providerRef: booking.paymentRef ?? null,
             status: 'PAID',
           },

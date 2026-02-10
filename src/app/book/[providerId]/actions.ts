@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { lockSlot, releaseSlot, getCachedSlots, setCachedSlots, invalidateSlotCache } from '@/lib/redis'
 import { getSession } from '@/lib/auth-helpers-clerk'
-import { createOPayCashierPayment } from '@/lib/opay'
+import { getPaymentGateway } from '@/lib/payments/gateway-factory'
 const createBookingSchema = z.object({
   providerId: z.string(),
   serviceId: z.string(),
@@ -428,7 +428,11 @@ export async function getBookingByRef(bookingRef: string) {
   }
 }
 
-export async function initiateOPayCashierPayment(bookingRef: string) {
+/**
+ * Initialize payment for a booking using the DB-configured gateway (OPay or Paystack).
+ * Returns the URL to redirect the customer to the gateway's checkout page.
+ */
+export async function initiateBookingPayment(bookingRef: string) {
   const booking = await prisma.booking.findUnique({
     where: { bookingRef },
     include: { service: true, provider: true, staff: { include: { user: true } } },
@@ -441,27 +445,34 @@ export async function initiateOPayCashierPayment(bookingRef: string) {
   const date = booking.bookingDate.toISOString().split('T')[0]
   const time = `${booking.startTime}–${booking.endTime}`
 
-  // Calculate total amount: service price + platform fee (capped at ₦1,000)
   const servicePrice = Number(booking.service.price)
   const platformFeePercentage = Number(process.env.PLATFORM_FEE_PERCENTAGE || 10)
   const platformFee = Math.min(servicePrice * (platformFeePercentage / 100), 1000)
-  const totalAmount = servicePrice + platformFee
+  const totalAmountKobo = Math.round((servicePrice + platformFee) * 100)
 
-  const result = await createOPayCashierPayment({
+  const gateway = await getPaymentGateway(booking.providerId)
+  const callbackPath = gateway.name === 'PAYSTACK' ? '/api/webhooks/paystack' : '/api/webhooks/opay'
+
+  const result = await gateway.initializePayment({
+    bookingId: booking.id,
     reference: booking.bookingRef,
-    amountTotalKobo: Math.round(totalAmount * 100),
-    product: { name: booking.service.name, description: `Booking: ${booking.service.name} - ${date} ${time}` },
+    amountKobo: totalAmountKobo,
+    currency: 'NGN',
+    customerEmail: booking.customerEmail ?? booking.customerName,
+    customerName: booking.customerName,
+    customerPhone: booking.customerPhone,
+    callbackUrl: `${baseUrl}${callbackPath}`,
     returnUrl: `${baseUrl}/book/${booking.providerId}/confirm?ref=${booking.bookingRef}`,
-    callbackUrl: `${baseUrl}/api/webhooks/opay`,
     cancelUrl: `${baseUrl}/book/${booking.providerId}?payment=cancelled`,
-    userInfo: {
-      userName: booking.customerName,
-      userMobile: booking.customerPhone,
-      userEmail: booking.customerEmail ?? undefined,
-    },
-    expireAt: 30,
+    productName: booking.service.name,
+    productDescription: `Booking: ${booking.service.name} - ${date} ${time}`,
   })
 
   if ('error' in result) return { error: result.error }
-  return { success: true, cashierUrl: result.cashierUrl }
+  return { success: true, cashierUrl: result.redirectUrl }
+}
+
+/** @deprecated Use initiateBookingPayment. Kept for backward compatibility. */
+export async function initiateOPayCashierPayment(bookingRef: string) {
+  return initiateBookingPayment(bookingRef)
 }
