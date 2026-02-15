@@ -47,19 +47,49 @@ async function BookingConfirmationContent({ bookingRef }: { bookingRef: string }
       provider: {
         select: {
           businessName: true,
+          id: true,
         },
       },
-      staff: {
+      userProvider: {
         include: {
           user: {
             select: {
               name: true,
+              email: true,
             },
           },
         },
       },
     },
   })
+
+  // Attempt to verify payment server-side on page load if still pending (Paystack redirect flow)
+  if (booking && booking.paymentStatus === 'PENDING') {
+    const { getPaymentGateway } = await import('@/lib/payments/gateway-factory')
+    try {
+      const gateway = await getPaymentGateway(booking.providerId)
+      if (gateway.name === 'PAYSTACK') {
+        const verification = await gateway.verifyPayment(bookingRef)
+
+        if (verification.success) {
+          await prisma.booking.update({
+            where: { id: booking.id },
+            data: {
+              status: 'CONFIRMED',
+              paymentStatus: 'PAID',
+              paymentRef: verification.transactionId,
+              updatedAt: new Date(),
+            },
+          })
+          // Update local object to reflect change immediately in UI
+          booking.status = 'CONFIRMED'
+          booking.paymentStatus = 'PAID'
+        }
+      }
+    } catch (e) {
+      console.error('Error verifying payment on confirm page:', e)
+    }
+  }
 
   if (!booking) {
     return (

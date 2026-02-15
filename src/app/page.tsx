@@ -115,7 +115,7 @@ export default async function HomePage() {
             services: {
               where: { isActive: true },
             },
-            staff: {
+            userProviders: {
               where: { isActive: true },
               include: {
                 user: {
@@ -141,7 +141,7 @@ export default async function HomePage() {
             services: {
               where: { isActive: true },
             },
-            staff: {
+            userProviders: {
               where: { isActive: true },
               include: {
                 user: {
@@ -175,7 +175,7 @@ export default async function HomePage() {
         ...service,
         price: Number(service.price),
       })),
-      staff: provider.staff.map(staff => ({
+      userProviders: provider.userProviders.map(staff => ({
         ...staff,
         services: staff.services.map(staffService => ({
           ...staffService,

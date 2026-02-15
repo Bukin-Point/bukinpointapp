@@ -13,7 +13,7 @@ export async function fulfillPaymentSuccess(params: {
 }): Promise<void> {
   const booking = await prisma.booking.findUnique({
     where: { bookingRef: params.reference },
-    include: { service: true, provider: true, staff: { include: { user: true } } },
+    include: { service: true, provider: true, userProvider: { include: { user: true } } },
   })
 
   if (!booking || booking.paymentStatus === 'PAID') return
@@ -77,7 +77,7 @@ export async function fulfillPaymentSuccess(params: {
       bookingDate: booking.bookingDate,
       startTime: booking.startTime,
       endTime: booking.endTime,
-      staffName: booking.staff.user.name ?? '',
+      staffName: booking.userProvider.user.name ?? '',
       price: Number(booking.service.price),
       providerPhone: booking.provider.phone || undefined,
     }).catch((e) => console.error('fulfillPaymentSuccess: sendBookingConfirmationEmail error', e))
@@ -95,7 +95,7 @@ export async function fulfillPaymentSuccess(params: {
       bookingDate: booking.bookingDate,
       startTime: booking.startTime,
       endTime: booking.endTime,
-      staffName: booking.staff.user.name ?? '',
+      staffName: booking.userProvider.user.name ?? '',
       price: Number(booking.service.price),
       bookingUrl: `${appUrl}/bookings`,
     }).catch((e) => console.error('fulfillPaymentSuccess: sendProviderBookingNotificationEmail error', e))

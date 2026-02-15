@@ -22,7 +22,7 @@ export default async function ServicesPage({
   // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
   const headersList = await headers()
   const subdomainProviderId = headersList.get('x-provider-id')
-  
+
   const params = await searchParams
   // Prioritize subdomain provider ID over URL parameter for security
   const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
@@ -53,9 +53,9 @@ export default async function ServicesPage({
     services = await prisma.service.findMany({
       where: {
         providerId,
-        staffServices: {
+        userProviderServices: {
           some: {
-            staff: {
+            userProvider: {
               userId: session.user.id,
             },
           },

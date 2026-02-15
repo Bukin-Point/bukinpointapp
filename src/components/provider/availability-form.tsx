@@ -64,7 +64,7 @@ export function AvailabilityForm({
 
       const result = await createAvailability({
         providerId,
-        staffId,
+        userProviderId: staffId,
         dayOfWeek: parseInt(formData.dayOfWeek),
         startTime: formData.startTime,
         endTime: formData.endTime,

@@ -30,7 +30,7 @@ type BookingWithRelations = {
     businessName: string
     industry: string
   }
-  staff: {
+  userProvider: {
     id: string
     user: {
       name: string | null
@@ -188,7 +188,7 @@ export function CustomerBookingList({ bookings: initialBookings, userId, userEma
                 <div className="flex justify-between">
                   <span className="text-text-secondary">Staff:</span>
                   <span className="font-medium">
-                    {booking.staff.user.name || booking.staff.user.email}
+                    {booking.userProvider.user.name || booking.userProvider.user.email}
                   </span>
                 </div>
                 <div className="flex justify-between">

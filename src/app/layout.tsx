@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: 'Modern booking platform for service providers',
 }
 
+import NextTopLoader from 'nextjs-toploader'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,6 +29,17 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" className={poppins.variable}>
         <body className="antialiased">
+          <NextTopLoader
+            color="#000000"
+            initialPosition={0.08}
+            crawlSpeed={200}
+            height={3}
+            crawl={true}
+            showSpinner={false}
+            easing="ease"
+            speed={200}
+            shadow="0 0 10px #000000,0 0 5px #000000"
+          />
           <QueryProvider>
             <ErrorBoundary>
               {children}

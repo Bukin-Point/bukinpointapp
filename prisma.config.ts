@@ -4,6 +4,9 @@ import { config } from 'dotenv'
 config()
 
 export default {
+  migrations: {
+    seed: 'tsx prisma/seed-admin-only.ts',
+  },
   datasource: {
     url: process.env.DATABASE_URL || '',
   },

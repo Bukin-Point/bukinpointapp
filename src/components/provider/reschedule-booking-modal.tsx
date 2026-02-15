@@ -22,7 +22,7 @@ type BookingWithRelations = Booking & {
     id: string
     name: string
   }
-  staff: {
+  userProvider: {
     id: string
     user: {
       name: string | null
@@ -87,7 +87,7 @@ export function RescheduleBookingModal({
 
       // Filter slots by the booking's staff member
       const filteredSlots = (result.slots || []).filter(
-        slot => slot.staff.id === booking.staff.id
+        slot => slot.userProvider.id === booking.userProvider.id
       )
 
       setAvailableSlots(filteredSlots)

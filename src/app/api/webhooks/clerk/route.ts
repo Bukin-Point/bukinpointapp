@@ -97,7 +97,7 @@ export async function POST(req: Request) {
             where: { clerkUserId: userId },
             include: {
               provider: { select: { id: true } },
-              staffMemberships: { select: { id: true }, take: 1 },
+              userProviders: { select: { id: true }, take: 1 },
             },
           })
 
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
             let accountType: 'provider' | 'staff' | 'customer' = 'customer'
             if (dbUser.provider) {
               accountType = 'provider'
-            } else if (dbUser.staffMemberships.length > 0) {
+            } else if (dbUser.userProviders.length > 0) {
               accountType = 'staff'
             }
 

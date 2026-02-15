@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Provider, StaffMember } from '@prisma/client'
+import { Provider, UserProvider } from '@prisma/client'
 import { ServiceSelector } from './service-selector'
 import { TimePicker } from './time-picker'
 import { CustomerForm } from './customer-form'
-import { createBooking, initiateOPayCashierPayment } from '@/app/book/[providerId]/actions'
+import { createBooking, initiateBookingPayment } from '@/app/book/[providerId]/actions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 // Serialized Service type with price as number instead of Decimal
@@ -15,7 +15,7 @@ type SerializedService = Omit<import('@prisma/client').Service, 'price'> & {
 
 type ProviderWithRelations = Provider & {
   services: SerializedService[]
-  staff: (StaffMember & {
+  userProviders: (UserProvider & {
     user: {
       name: string | null
       email: string
@@ -37,14 +37,15 @@ interface BookingFlowProps {
   } | null
   initialServiceId?: string
   userPhone?: string | null
+  gatewayName?: string
 }
 
 type BookingStep = 'service' | 'time' | 'customer' | 'confirming'
 
-export function BookingFlow({ provider, session, initialServiceId, userPhone }: BookingFlowProps) {
+export function BookingFlow({ provider, session, initialServiceId, userPhone, gatewayName }: BookingFlowProps) {
   const [step, setStep] = useState<BookingStep>('service')
   const [selectedService, setSelectedService] = useState<SerializedService | null>(null)
-  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null)
+  const [selectedStaff, setSelectedStaff] = useState<UserProvider | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -58,7 +59,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
       if (service) {
         setSelectedService(service)
         // Find staff who can provide this service
-        const availableStaff = provider.staff.filter((staff) =>
+        const availableStaff = provider.userProviders.filter((staff) =>
           staff.services.some((ss) => ss.service.id === service.id)
         )
         if (availableStaff.length > 0) {
@@ -67,7 +68,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
         setStep('time')
       }
     }
-  }, [initialServiceId, provider.services, provider.staff, selectedService])
+  }, [initialServiceId, provider.services, provider.userProviders, selectedService])
 
   // Clear error when step changes
   useEffect(() => {
@@ -78,7 +79,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
     setError('')
     setSelectedService(service)
     // Find staff members who can provide this service
-    const availableStaff = provider.staff.filter((staff) =>
+    const availableStaff = provider.userProviders.filter((staff) =>
       staff.services.some((ss) => ss.service.id === service.id)
     )
     if (availableStaff.length > 0) {
@@ -87,7 +88,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
     setStep('time')
   }
 
-  const handleTimeSelect = (date: Date, time: string, staff: StaffMember) => {
+  const handleTimeSelect = (date: Date, time: string, staff: UserProvider) => {
     setError('')
     setSelectedDate(date)
     setSelectedTime(time)
@@ -135,7 +136,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
         setError(result.error)
         setLoading(false)
       } else if (result.booking) {
-        const cashier = await initiateOPayCashierPayment(result.booking.bookingRef)
+        const cashier = await initiateBookingPayment(result.booking.bookingRef)
         if (cashier.cashierUrl) {
           window.location.href = cashier.cashierUrl
         } else {
@@ -170,7 +171,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
         <TimePicker
           provider={provider}
           service={selectedService}
-          selectedStaff={selectedStaff}
+          selectedUserProvider={selectedStaff}
           onSelect={handleTimeSelect}
           onBack={() => {
             setError('')
@@ -192,6 +193,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone }: 
           loading={loading}
           session={session}
           userPhone={userPhone}
+          gatewayName={gatewayName}
         />
       )}
     </div>

@@ -20,9 +20,9 @@ model User {
   image         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
+  
+  userProviders    UserProvider[]
   provider         Provider?
-  staffMemberships StaffMember[]
   sessions         Session[]
   accounts         Account[]
   bookings         Booking[]
@@ -72,7 +72,7 @@ model Provider {
 
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   services     Service[]
-  staff        StaffMember[]
+  userProviders UserProvider[]
   bookings     Booking[]
   availability Availability[]
   wallet       Wallet?
@@ -95,6 +95,118 @@ enum PaymentGateway {
 }
 
 // ============================================
+// RBAC (Role-Based Access Control)
+// ============================================
+
+// ============================================
+// RBAC (Role-Based Access Control)
+// ============================================
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g., "SUPERADMIN", "PROVIDER_ADMIN", "STAFF", "CUSTOMER"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userProviderRoles UserProviderRole[]
+  rolePermissions   RolePermission[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g., "manage:settings", "view:bookings"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  rolePermissions         RolePermission[]
+  userProviderPermissions UserProviderPermission[]
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+// The central "Membership" Record
+model UserProvider {
+  id         String   @id @default(cuid())
+  userId     String
+  providerId String
+  isOwner    Boolean  @default(false)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  // Roles & Permissions
+  roles       UserProviderRole[]
+  permissions UserProviderPermission[]
+  
+  // Operational Data
+  availability Availability[]
+  bookings     Booking[]        @relation("StaffBookings")
+  services     UserProviderService[]
+
+  @@unique([userId, providerId])
+  @@index([providerId])
+  @@index([userId])
+}
+
+model UserProviderRole {
+  id             String   @id @default(cuid())
+  userProviderId String
+  roleId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  userProvider UserProvider @relation(fields: [userProviderId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userProviderId, roleId])
+}
+
+model UserProviderPermission {
+  id             String   @id @default(cuid())
+  userProviderId String
+  permissionId   String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  userProvider UserProvider @relation(fields: [userProviderId], references: [id], onDelete: Cascade)
+  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userProviderId, permissionId])
+}
+
+// Link Users (Staff) to Services they can perform
+model UserProviderService {
+  id             String @id @default(cuid())
+  userProviderId String
+  serviceId      String
+  
+  userProvider   UserProvider @relation(fields: [userProviderId], references: [id], onDelete: Cascade)
+  service        Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([userProviderId, serviceId])
+  @@index([userProviderId])
+  @@index([serviceId])
+}
+
+// ============================================
+
+// ============================================
 // SERVICES
 // ============================================
 
@@ -110,52 +222,11 @@ model Service {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  provider      Provider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  bookings      Booking[]
-  staffServices StaffService[]
+  provider             Provider              @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  bookings             Booking[]
+  userProviderServices UserProviderService[]
 
   @@index([providerId, isActive])
-}
-
-// ============================================
-// STAFF
-// ============================================
-
-model StaffMember {
-  id         String    @id @default(cuid())
-  providerId String
-  userId     String
-  role       StaffRole @default(STAFF)
-  isActive   Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  provider     Provider       @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  services     StaffService[]
-  availability Availability[]
-  bookings     Booking[]
-
-  @@unique([providerId, userId])
-  @@index([providerId, isActive])
-}
-
-enum StaffRole {
-  OWNER
-  STAFF
-}
-
-model StaffService {
-  id        String @id @default(cuid())
-  staffId   String
-  serviceId String
-
-  staff   StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  service Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  @@unique([staffId, serviceId])
-  @@index([staffId])
-  @@index([serviceId])
 }
 
 // ============================================
@@ -167,7 +238,8 @@ model StaffInvitation {
   providerId String
   email      String
   token      String    @unique
-  role       StaffRole @default(STAFF)
+  // role       StaffRole @default(STAFF) // TODO: Update to use Role ID later
+  roleId     String?   // Optional default role to assign
   serviceIds String    @default("[]") // JSON array of service IDs
   expiresAt  DateTime
   acceptedAt DateTime?
@@ -186,57 +258,61 @@ model StaffInvitation {
 // ============================================
 
 model Availability {
-  id          String    @id @default(cuid())
-  providerId  String
-  staffId     String
-  dayOfWeek   Int // 0-6 (Sunday-Saturday)
-  startTime   String // "09:00"
-  endTime     String // "17:00"
-  isBlocked   Boolean   @default(false)
-  blockedDate DateTime? // specific date override
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  providerId     String
+  userProviderId String    // Replaces staffId
+  dayOfWeek      Int // 0-6 (Sunday-Saturday)
+  startTime      String // "09:00"
+  endTime        String // "17:00"
+  isBlocked      Boolean   @default(false)
+  blockedDate    DateTime? // specific date override
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  provider Provider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  staff    StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  provider     Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  userProvider UserProvider @relation(fields: [userProviderId], references: [id], onDelete: Cascade)
 
-  @@index([providerId, staffId, dayOfWeek])
-  @@index([staffId, blockedDate])
+  @@index([providerId, userProviderId, dayOfWeek])
+  @@index([userProviderId, blockedDate])
 }
 
 // ============================================
 // BOOKINGS
 // ============================================
 
-model Booking {
-  id            String        @id @default(cuid())
-  bookingRef    String        @unique @default(cuid())
-  providerId    String
-  serviceId     String
-  staffId       String
-  userId        String? // Optional: link to customer account
-  customerName  String
-  customerPhone String
-  customerEmail String?
-  bookingDate   DateTime
-  startTime     String // "10:00"
-  endTime       String // "11:00"
-  status        BookingStatus @default(PENDING)
-  paymentStatus PaymentStatus @default(PENDING)
-  paymentRef    String?
-  consentGiven  Boolean       @default(false)
-  notes         String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+// ============================================
+// BOOKINGS
+// ============================================
 
-  provider    Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  service     Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  staff       StaffMember  @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  transaction Transaction?
+model Booking {
+  id             String        @id @default(cuid())
+  bookingRef     String        @unique @default(cuid())
+  providerId     String
+  serviceId      String
+  userProviderId String        // Replaces staffId
+  userId         String? // Optional: link to customer account
+  customerName   String
+  customerPhone  String
+  customerEmail  String?
+  bookingDate    DateTime
+  startTime      String // "10:00"
+  endTime        String // "11:00"
+  status         BookingStatus @default(PENDING)
+  paymentStatus  PaymentStatus @default(PENDING)
+  paymentRef     String?
+  consentGiven   Boolean       @default(false)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  provider     Provider     @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  userProvider UserProvider @relation("StaffBookings", fields: [userProviderId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  transaction  Transaction?
 
   @@index([providerId, bookingDate, status])
-  @@index([staffId, bookingDate])
+  @@index([userProviderId, bookingDate])
   @@index([bookingRef])
   @@index([customerPhone])
   @@index([userId])

@@ -27,7 +27,7 @@ type BookingWithRelations = Booking & {
     id: string
     name: string
   }
-  staff: {
+  userProvider: {
     id: string
     user: {
       name: string | null
@@ -310,7 +310,7 @@ export function BookingTable({
                     <span>{booking.customerPhone}</span>
                   </td>
                   <td className="p-3 text-body-sm hidden lg:table-cell">
-                    <span>{booking.staff.user.name || booking.staff.user.email}</span>
+                    <span>{booking.userProvider.user.name || booking.userProvider.user.email}</span>
                   </td>
                   <td className="p-3">
                     <Badge className={STATUS_COLORS[booking.status]}>

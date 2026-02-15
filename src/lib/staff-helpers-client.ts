@@ -1,17 +1,19 @@
-import { StaffRole } from '@prisma/client'
 import { useProviderContext } from '@/store/provider-context'
 
-export interface StaffContext {
-  staffMember: {
+// UserProviderContext - RBAC system
+export interface UserProviderContext {
+  userProvider: {
     id: string
     providerId: string
-    role: StaffRole
     userId: string
+    isOwner: boolean
+    roles: Array<{ role: { name: string } }>
+    permissions: Array<{ permission: { name: string } }>
   }
   provider: {
     id: string
     businessName: string
-    industry: string
+    industry: string | null
     userId: string
     businessImage: string | null
   }
@@ -21,13 +23,13 @@ export interface ProviderContext {
   provider: {
     id: string
     businessName: string
-    industry: string
+    industry: string | null
     userId: string
     businessImage: string | null
   }
 }
 
-export type AccessContext = StaffContext | ProviderContext
+export type AccessContext = UserProviderContext | ProviderContext
 
 /**
  * Check if user has permission to access a route
@@ -37,26 +39,24 @@ export function canAccessRoute(context: AccessContext | null, route: string): bo
     return false
   }
 
-  // Providers have full access
-  if ('provider' in context && !('staffMember' in context)) {
+  // Providers have full access (ProviderContext)
+  if (!('userProvider' in context)) {
     return true
   }
 
-  // Staff members have restricted access
-  if ('staffMember' in context) {
-    const { staffMember } = context
+  // UserProvider (RBAC) - check roles
+  const { userProvider } = context
+  // Owner or OWNER role has full access
+  const isOwner = userProvider.isOwner || userProvider.roles.some((r) => r.role.name === 'OWNER')
 
-    // OWNER role has full access like provider
-    if (staffMember.role === 'OWNER') {
-      return true
-    }
-
-    // STAFF role has limited access
-    const restrictedRoutes = ['/wallet', '/settings', '/staff']
-    return !restrictedRoutes.some(restricted => route.startsWith(restricted))
+  if (isOwner) {
+    return true
   }
 
-  return false
+  // STAFF role has limited access
+  // TODO: Move this to a more robust permission check like `can(context, 'view:settings')`
+  const restrictedRoutes = ['/wallet', '/settings', '/staff']
+  return !restrictedRoutes.some(restricted => route.startsWith(restricted))
 }
 
 /**
@@ -68,16 +68,12 @@ export function canManageStaff(context: AccessContext | null): boolean {
   }
 
   // Providers can manage staff
-  if ('provider' in context && !('staffMember' in context)) {
+  if (!('userProvider' in context)) {
     return true
   }
 
-  // Only OWNER role staff can manage staff
-  if ('staffMember' in context) {
-    return context.staffMember.role === 'OWNER'
-  }
-
-  return false
+  // UserProvider - check for owner or OWNER role
+  return context.userProvider.isOwner || context.userProvider.roles.some((r) => r.role.name === 'OWNER')
 }
 
 /**
@@ -89,16 +85,12 @@ export function canEditServices(context: AccessContext | null): boolean {
   }
 
   // Providers can edit services
-  if ('provider' in context && !('staffMember' in context)) {
+  if (!('userProvider' in context)) {
     return true
   }
 
-  // Only OWNER role staff can edit services
-  if ('staffMember' in context) {
-    return context.staffMember.role === 'OWNER'
-  }
-
-  return false
+  // UserProvider - check for owner or OWNER role
+  return context.userProvider.isOwner || context.userProvider.roles.some((r) => r.role.name === 'OWNER')
 }
 
 /**
@@ -110,16 +102,12 @@ export function canViewAllBookings(context: AccessContext | null): boolean {
   }
 
   // Providers can view all bookings
-  if ('provider' in context && !('staffMember' in context)) {
+  if (!('userProvider' in context)) {
     return true
   }
 
-  // OWNER role can view all bookings
-  if ('staffMember' in context) {
-    return context.staffMember.role === 'OWNER'
-  }
-
-  return false
+  // UserProvider - check for owner or OWNER role
+  return context.userProvider.isOwner || context.userProvider.roles.some((r) => r.role.name === 'OWNER')
 }
 
 /**
@@ -134,18 +122,21 @@ export function getProviderId(context: AccessContext | null): string | null {
 }
 
 /**
- * Check if user is staff (not provider)
+ * Check if user is staff (not provider owner acting as provider)
+ * Note: If a user is an owner/member, this returns true. 
+ * 'ProviderContext' implies the user is the direct Provider record holder (legacy maybe?) or we treat them as such.
  */
 export function isStaff(context: AccessContext | null): boolean {
-  return context !== null && 'staffMember' in context
+  return context !== null && 'userProvider' in context
 }
 
 /**
  * Get staff role if user is staff
  */
-export function getStaffRole(context: AccessContext | null): StaffRole | null {
-  if (context && 'staffMember' in context) {
-    return context.staffMember.role
+export function getStaffRole(context: AccessContext | null): string | null {
+  if (context && 'userProvider' in context) {
+    // Return first role name for RBAC system
+    return context.userProvider.roles[0]?.role.name || null
   }
   return null
 }

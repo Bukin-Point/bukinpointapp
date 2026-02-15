@@ -6,7 +6,7 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 export interface StaffInvitationEmailData {
   email: string
   businessName: string
-  role: 'OWNER' | 'STAFF'
+  role: 'OWNER' | 'STAFF' | 'PROVIDER'
   invitationUrl: string
 }
 
@@ -92,7 +92,7 @@ export async function sendStaffInvitationEmail(
   const recipientEmail = isDevelopment && !allowRealEmails ? devEmail : data.email
 
   try {
-    const roleText = data.role === 'OWNER' ? 'an Owner' : 'Staff'
+    const roleText = data.role === 'OWNER' ? 'an Owner' : data.role === 'PROVIDER' ? 'a Provider' : 'Staff'
 
     const result = await resend.emails.send({
       from: fromAddress,
@@ -114,17 +114,15 @@ export async function sendStaffInvitationEmail(
               <h2 style="color: #333; font-size: 20px; margin-top: 0;">You've been invited!</h2>
               
               <p style="color: #666; font-size: 16px;">
-                <strong>${
-                  data.businessName
-                }</strong> has invited you to join their team as ${roleText}.
+                <strong>${data.businessName
+        }</strong> has invited you to join their team as ${roleText}.
               </p>
-              ${
-                isDevelopment && !allowRealEmails
-                  ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
+              ${isDevelopment && !allowRealEmails
+          ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
                 <strong>Development Mode:</strong> This email was sent to you for testing. The actual invitation was intended for: <strong>${data.email}</strong>
               </p>`
-                  : ''
-              }
+          : ''
+        }
               <p style="color: #666; font-size: 16px;">
                 Click the button below to accept the invitation and create your account:
               </p>
@@ -142,9 +140,8 @@ export async function sendStaffInvitationEmail(
               
               <p style="color: #999; font-size: 12px; margin-top: 20px;">
                 If the button doesn't work, copy and paste this link into your browser:<br>
-                <a href="${data.invitationUrl}" style="color: #006D77; word-break: break-all;">${
-        data.invitationUrl
-      }</a>
+                <a href="${data.invitationUrl}" style="color: #006D77; word-break: break-all;">${data.invitationUrl
+        }</a>
               </p>
             </div>
             
@@ -223,39 +220,34 @@ export async function sendBookingConfirmationEmail(
               </p>
               
               <p style="color: #666; font-size: 16px;">
-                Your booking has been received and is pending confirmation from ${
-                  data.providerBusinessName
-                }.
+                Your booking has been received and is pending confirmation from ${data.providerBusinessName
+        }.
               </p>
               
-              ${
-                isDevelopment && !allowRealEmails
-                  ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
+              ${isDevelopment && !allowRealEmails
+          ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
                 <strong>Development Mode:</strong> This email was sent to you for testing. The actual email was intended for: <strong>${data.customerEmail}</strong>
               </p>`
-                  : ''
-              }
+          : ''
+        }
               
               <div style="background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin: 20px 0;">
                 <h3 style="color: #333; font-size: 18px; margin-top: 0;">Booking Details</h3>
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Booking Reference:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.bookingRef
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.bookingRef
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Service:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.serviceName
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.serviceName
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Provider:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.providerBusinessName
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.providerBusinessName
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Date:</td>
@@ -263,21 +255,19 @@ export async function sendBookingConfirmationEmail(
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Time:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.startTime
-                    } - ${data.endTime}</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.startTime
+        } - ${data.endTime}</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Staff:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.staffName || 'Not assigned'
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.staffName || 'Not assigned'
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Price:</td>
                     <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">₦${Number(
-                      data.price
-                    ).toLocaleString()}</td>
+          data.price
+        ).toLocaleString()}</td>
                   </tr>
                 </table>
               </div>
@@ -286,13 +276,12 @@ export async function sendBookingConfirmationEmail(
                 <strong>What's next?</strong> The provider will review your booking and confirm it shortly. You'll receive another email once your booking is confirmed.
               </p>
               
-              ${
-                data.providerPhone
-                  ? `<p style="color: #666; font-size: 14px; margin-top: 20px;">
+              ${data.providerPhone
+          ? `<p style="color: #666; font-size: 14px; margin-top: 20px;">
                 If you have any questions, you can contact ${data.providerBusinessName} at ${data.providerPhone}.
               </p>`
-                  : ''
-              }
+          : ''
+        }
               
               <p style="color: #999; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
                 This is an automated confirmation. Please keep this email for your records.
@@ -377,37 +366,33 @@ export async function sendProviderBookingNotificationEmail(
                 You have received a new booking request that requires your attention.
               </p>
               
-              ${
-                isDevelopment && !allowRealEmails
-                  ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
+              ${isDevelopment && !allowRealEmails
+          ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
                 <strong>Development Mode:</strong> This email was sent to you for testing. The actual email was intended for: <strong>${data.providerEmail}</strong>
               </p>`
-                  : ''
-              }
+          : ''
+        }
               
               <div style="background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin: 20px 0;">
                 <h3 style="color: #333; font-size: 18px; margin-top: 0;">Customer Information</h3>
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Name:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.customerName
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.customerName
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Phone:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.customerPhone
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.customerPhone
+        }</td>
                   </tr>
-                  ${
-                    data.customerEmail
-                      ? `<tr>
+                  ${data.customerEmail
+          ? `<tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Email:</td>
                     <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.customerEmail}</td>
                   </tr>`
-                      : ''
-                  }
+          : ''
+        }
                 </table>
               </div>
               
@@ -416,15 +401,13 @@ export async function sendProviderBookingNotificationEmail(
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Booking Reference:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.bookingRef
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.bookingRef
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Service:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.serviceName
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.serviceName
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Date:</td>
@@ -432,21 +415,19 @@ export async function sendProviderBookingNotificationEmail(
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Time:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.startTime
-                    } - ${data.endTime}</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.startTime
+        } - ${data.endTime}</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Staff:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.staffName || 'Not assigned'
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.staffName || 'Not assigned'
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Price:</td>
                     <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">₦${Number(
-                      data.price
-                    ).toLocaleString()}</td>
+          data.price
+        ).toLocaleString()}</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Status:</td>
@@ -581,34 +562,30 @@ export async function sendBookingStatusUpdateEmail(
                 ${statusMessage}
               </p>
               
-              ${
-                isDevelopment && !allowRealEmails
-                  ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
+              ${isDevelopment && !allowRealEmails
+          ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
                 <strong>Development Mode:</strong> This email was sent to you for testing. The actual email was intended for: <strong>${data.customerEmail}</strong>
               </p>`
-                  : ''
-              }
+          : ''
+        }
               
               <div style="background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin: 20px 0;">
                 <h3 style="color: #333; font-size: 18px; margin-top: 0;">Booking Details</h3>
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Booking Reference:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.bookingRef
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.bookingRef
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Service:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.serviceName
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.serviceName
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Provider:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.providerBusinessName
-                    }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.providerBusinessName
+        }</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Date:</td>
@@ -616,15 +593,13 @@ export async function sendBookingStatusUpdateEmail(
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Time:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${
-                      data.startTime
-                    } - ${data.endTime}</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px;">${data.startTime
+        } - ${data.endTime}</td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-size: 14px;">Status:</td>
-                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px; color: ${statusColor};">${
-        data.newStatus
-      }</td>
+                    <td style="padding: 8px 0; font-weight: 600; font-size: 14px; color: ${statusColor};">${data.newStatus
+        }</td>
                   </tr>
                 </table>
               </div>
@@ -736,13 +711,12 @@ export async function sendRescheduleNotificationEmail(
                 ${message}
               </p>
               
-              ${
-                isDevelopment && !allowRealEmails
-                  ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
+              ${isDevelopment && !allowRealEmails
+          ? `<p style="color: #ff6b6b; font-size: 14px; background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0;">
                 <strong>Development Mode:</strong> This email was sent to you for testing. The actual email was intended for: <strong>${data.recipientEmail}</strong>
               </p>`
-                  : ''
-              }
+          : ''
+        }
               
               <div style="background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin: 20px 0;">
                 <h3 style="color: #333; font-size: 18px; margin-top: 0;">Booking Details</h3>
@@ -780,13 +754,12 @@ export async function sendRescheduleNotificationEmail(
                 </p>
               </div>
               
-              ${
-                data.providerPhone && data.initiatedBy === 'provider'
-                  ? `<p style="color: #666; font-size: 14px; margin-top: 20px;">
+              ${data.providerPhone && data.initiatedBy === 'provider'
+          ? `<p style="color: #666; font-size: 14px; margin-top: 20px;">
                 If you have any questions, you can contact ${data.providerBusinessName} at ${data.providerPhone}.
               </p>`
-                  : ''
-              }
+          : ''
+        }
               
               <p style="color: #999; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
                 This is an automated notification. Please keep this email for your records.

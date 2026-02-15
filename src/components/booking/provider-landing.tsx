@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, Phone, Mail, Building2, CheckCircle2 } from 'lucide-react'
-import type { Provider, StaffMember } from '@prisma/client'
+import type { Provider, UserProvider } from '@prisma/client'
 import { ServiceCard } from '@/components/marketplace/service-card'
 import { Footer } from '@/components/marketplace/footer'
 import type { MarketplaceService } from '@/actions/marketplace'
@@ -18,7 +18,7 @@ type SerializedService = Omit<import('@prisma/client').Service, 'price'> & {
 
 type ProviderWithRelations = Provider & {
   services: SerializedService[]
-  staff: (StaffMember & {
+  userProviders: (UserProvider & {
     user: {
       name: string | null
       email: string

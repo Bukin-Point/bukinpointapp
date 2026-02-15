@@ -1,12 +1,10 @@
 'use client'
 
 import { create } from 'zustand'
-import { StaffRole } from '@prisma/client'
-
 export interface ProviderOption {
   id: string
   businessName: string
-  role?: StaffRole
+  role?: 'OWNER' | 'STAFF' | 'PROVIDER'
   isProvider: boolean
 }
 
@@ -36,7 +34,7 @@ export const useProviderContext = create<ProviderContextState>((set, get) => ({
     // Validate providerId exists in available providers
     const { availableProviders } = get()
     const isValid = availableProviders.some((p) => p.id === providerId)
-    
+
     if (!isValid) {
       set({ error: 'Invalid provider selected' })
       return
@@ -48,11 +46,11 @@ export const useProviderContext = create<ProviderContextState>((set, get) => ({
 
   loadProviders: async (userId: string) => {
     set({ isLoading: true, error: null })
-    
+
     try {
       const response = await fetch(`/api/provider-context?userId=${userId}`)
       const data = await response.json()
-      
+
       if (!data.success) {
         set({ error: data.error || 'Failed to load providers', isLoading: false })
         return
@@ -95,7 +93,7 @@ export const useProviderContext = create<ProviderContextState>((set, get) => ({
       // Validate against available providers
       const { availableProviders } = get()
       const isValid = availableProviders.some((p) => p.id === providerId)
-      
+
       if (isValid) {
         set({ selectedProviderId: providerId, error: null })
         get().persistToLocalStorage(providerId)
@@ -107,13 +105,13 @@ export const useProviderContext = create<ProviderContextState>((set, get) => ({
 
   syncWithLocalStorage: () => {
     if (typeof window === 'undefined') return false
-    
+
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const { availableProviders } = get()
         const isValid = availableProviders.some((p) => p.id === stored)
-        
+
         if (isValid) {
           set({ selectedProviderId: stored, error: null })
           return true
@@ -125,13 +123,13 @@ export const useProviderContext = create<ProviderContextState>((set, get) => ({
     } catch (error) {
       console.error('Error syncing with localStorage:', error)
     }
-    
+
     return false
   },
 
   persistToLocalStorage: (providerId: string) => {
     if (typeof window === 'undefined') return
-    
+
     try {
       localStorage.setItem(STORAGE_KEY, providerId)
     } catch (error) {

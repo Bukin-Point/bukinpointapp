@@ -7,12 +7,12 @@ import { z } from 'zod'
 const createStaffSchema = z.object({
   providerId: z.string(),
   email: z.string().email('Invalid email address'),
-  role: z.enum(['OWNER', 'STAFF']).default('STAFF'),
+  role: z.enum(['OWNER', 'STAFF', 'PROVIDER']).default('STAFF'),
   serviceIds: z.array(z.string()).default([]),
 })
 
 const updateStaffSchema = z.object({
-  role: z.enum(['OWNER', 'STAFF']).optional(),
+  role: z.enum(['OWNER', 'STAFF', 'PROVIDER']).optional(),
   serviceIds: z.array(z.string()).optional(),
 })
 
@@ -27,53 +27,79 @@ export async function createStaff(data: z.infer<typeof createStaffSchema>) {
 
     if (!user) {
       // User doesn't exist yet - they'll need to sign up
-      // For now, we'll create a placeholder user
-      // In production, you might want to send an invitation email instead
+      // For now, we'll create a placeholder user or return error
       return {
         error:
           'User with this email does not exist. They need to sign up first, or you can invite them via email.',
       }
     }
 
-    // Check if staff member already exists
-    const existing = await prisma.staffMember.findUnique({
+    // Check if user provider relationship already exists
+    const existing = await prisma.userProvider.findFirst({
       where: {
-        providerId_userId: {
-          providerId: validated.providerId,
-          userId: user.id,
-        },
+        providerId: validated.providerId,
+        userId: user.id,
       },
+      include: {
+        provider: { select: { status: true } }
+      }
     })
 
     if (existing) {
-      return { error: 'This user is already a staff member' }
+      if (existing.provider.status !== 'ACTIVE') {
+        return { error: 'This provider account is not active.' }
+      }
+      return { error: 'This user is already a member of this provider.' }
     }
 
-    // Create staff member and assign services
-    const staffMember = await prisma.$transaction(async (tx) => {
-      const newStaff = await tx.staffMember.create({
+    // Determine role name
+    const roleName = validated.role === 'OWNER' ? 'OWNER' : 'STAFF';
+
+    // Get role ID
+    const role = await prisma.role.findUnique({
+      where: { name: roleName },
+    })
+
+    if (!role) {
+      // If system roles are missing, this is a critical config error
+      return { error: `System role '${roleName}' not found.` }
+    }
+
+    // Create UserProvider and assign role & services
+    const userProvider = await prisma.$transaction(async (tx) => {
+      // Create UserProvider
+      const newUp = await tx.userProvider.create({
         data: {
           providerId: validated.providerId,
           userId: user!.id,
-          role: validated.role,
+          isOwner: roleName === 'OWNER',
+          isActive: true,
         },
       })
 
-      // Assign services
+      // Assign Role
+      await tx.userProviderRole.create({
+        data: {
+          userProviderId: newUp.id,
+          roleId: role.id,
+        },
+      })
+
+      // Assign Services
       if (validated.serviceIds.length > 0) {
-        await tx.staffService.createMany({
+        await tx.userProviderService.createMany({
           data: validated.serviceIds.map((serviceId) => ({
-            staffId: newStaff.id,
+            userProviderId: newUp.id,
             serviceId,
           })),
         })
       }
 
-      return newStaff
+      return newUp
     })
 
     revalidatePath('/staff')
-    return { success: true, staffMember }
+    return { success: true, userProvider }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { error: error.issues[0]?.message || 'Validation error' }
@@ -84,33 +110,60 @@ export async function createStaff(data: z.infer<typeof createStaffSchema>) {
 }
 
 export async function updateStaff(
-  id: string,
+  id: string, // This is userProviderId
   data: z.infer<typeof updateStaffSchema>
 ) {
   try {
     const validated = updateStaffSchema.parse(data)
 
     await prisma.$transaction(async (tx) => {
-      // Update staff member
+      // Update role if changed
       if (validated.role !== undefined) {
-        await tx.staffMember.update({
+        const roleName = validated.role === 'OWNER' ? 'OWNER' : 'STAFF';
+
+        // Update isOwner flag
+        await tx.userProvider.update({
           where: { id },
-          data: { role: validated.role },
+          data: { isOwner: roleName === 'OWNER' },
+        })
+
+        // Fetch the new role object
+        const newRole = await tx.role.findUnique({
+          where: { name: roleName },
+        })
+
+        if (!newRole) {
+          throw new Error(`Role ${roleName} not found`)
+        }
+
+        // We need to update the UserProviderRole.
+        // First, check existing roles. We assume one primary role for now.
+        // Delete existing roles for this userProvider
+        await tx.userProviderRole.deleteMany({
+          where: { userProviderId: id },
+        })
+
+        // Create new role assignment
+        await tx.userProviderRole.create({
+          data: {
+            userProviderId: id,
+            roleId: newRole.id,
+          },
         })
       }
 
       // Update service assignments
       if (validated.serviceIds !== undefined) {
         // Remove existing assignments
-        await tx.staffService.deleteMany({
-          where: { staffId: id },
+        await tx.userProviderService.deleteMany({
+          where: { userProviderId: id },
         })
 
         // Add new assignments
         if (validated.serviceIds.length > 0) {
-          await tx.staffService.createMany({
+          await tx.userProviderService.createMany({
             data: validated.serviceIds.map((serviceId) => ({
-              staffId: id,
+              userProviderId: id,
               serviceId,
             })),
           })
@@ -131,7 +184,7 @@ export async function updateStaff(
 
 export async function deleteStaff(id: string) {
   try {
-    await prisma.staffMember.delete({
+    await prisma.userProvider.delete({
       where: { id },
     })
 
@@ -145,7 +198,7 @@ export async function deleteStaff(id: string) {
 
 export async function toggleStaffStatus(id: string, isActive: boolean) {
   try {
-    await prisma.staffMember.update({
+    await prisma.userProvider.update({
       where: { id },
       data: { isActive },
     })

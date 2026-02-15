@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { BookingFlow } from '@/components/booking/booking-flow'
 import { ProviderLanding } from '@/components/booking/provider-landing'
+import { getCurrentGatewayForProvider } from '@/lib/payment-config'
 
 export default async function PublicBookingPage({
   params,
@@ -32,7 +33,7 @@ export default async function PublicBookingPage({
       services: {
         where: { isActive: true },
       },
-      staff: {
+      userProviders: {
         where: { isActive: true },
         include: {
           user: {
@@ -65,13 +66,13 @@ export default async function PublicBookingPage({
       ...service,
       price: Number(service.price),
     })),
-    staff: provider.staff.map(staff => ({
-      ...staff,
-      services: staff.services.map(staffService => ({
-        ...staffService,
+    userProviders: provider.userProviders.map(up => ({
+      ...up,
+      services: up.services.map(upService => ({
+        ...upService,
         service: {
-          ...staffService.service,
-          price: Number(staffService.service.price),
+          ...upService.service,
+          price: Number(upService.service.price),
         },
       })),
     })),
@@ -79,6 +80,8 @@ export default async function PublicBookingPage({
 
   // Show booking flow if serviceId is provided or book=true, otherwise show landing page
   const showBookingFlow = !!serviceId || book === 'true'
+
+  const currentGateway = await getCurrentGatewayForProvider(finalProviderId)
 
   return (
     <div className="min-h-screen bg-surface py-8">
@@ -95,11 +98,12 @@ export default async function PublicBookingPage({
                 <h1 className="text-h1 mb-2">Book with {provider.businessName}</h1>
                 <p className="text-body-sm text-text-secondary">{provider.industry}</p>
               </div>
-              <BookingFlow 
-                provider={serializedProvider} 
-                session={session} 
+              <BookingFlow
+                provider={serializedProvider}
+                session={session}
                 initialServiceId={serviceId}
                 userPhone={userPhone}
+                gatewayName={currentGateway}
               />
             </>
           ) : (

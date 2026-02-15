@@ -23,11 +23,16 @@ export default async function CustomerLayout({
     redirect('/dashboard')
   }
 
-  const staffMember = await prisma.staffMember.findFirst({
+  /*
+   * Check if user is a member of any provider (Owner or Staff)
+   * The explicit provider check above might be redundant if all owners have UserProvider records,
+   * but we'll keep the logic simple: if they have a UserProvider record, they belong in the dashboard.
+   */
+  const userProvider = await prisma.userProvider.findFirst({
     where: { userId: session.user.id },
   })
 
-  if (staffMember) {
+  if (userProvider) {
     redirect('/dashboard')
   }
 

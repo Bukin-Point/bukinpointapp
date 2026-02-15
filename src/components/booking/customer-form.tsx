@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { format } from 'date-fns'
 
@@ -33,9 +34,10 @@ interface CustomerFormProps {
     }
   } | null
   userPhone?: string | null
+  gatewayName?: string
 }
 
-export function CustomerForm({ service, date, time, onSubmit, onBack, loading, session, userPhone }: CustomerFormProps) {
+export function CustomerForm({ service, date, time, onSubmit, onBack, loading, session, userPhone, gatewayName = 'OPAY' }: CustomerFormProps) {
   const [formData, setFormData] = useState({
     name: session?.user?.name || '',
     phone: userPhone || '',
@@ -215,7 +217,14 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading, s
             Back
           </Button>
           <Button type="submit" disabled={loading || !consentAccepted} className="flex-1">
-            {loading ? 'Processing...' : 'Pay with OPay'}
+            {loading ? (
+              <>
+                <Spinner className="mr-2 h-4 w-4" />
+                Processing...
+              </>
+            ) : (
+              `Pay with ${gatewayName === 'PAYSTACK' ? 'Paystack' : 'OPay'}`
+            )}
           </Button>
         </CardFooter>
       </form>

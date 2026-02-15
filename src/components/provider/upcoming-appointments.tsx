@@ -11,7 +11,7 @@ type BookingWithRelations = Booking & {
     id: string
     name: string
   }
-  staff: {
+  userProvider: {
     user: {
       name: string | null
       email: string
@@ -100,7 +100,7 @@ export function UpcomingAppointments({ appointments }: UpcomingAppointmentsProps
                       </span>
                     </div>
                     <p className="text-caption text-text-secondary">
-                      Staff: {appointment.staff.user.name || appointment.staff.user.email}
+                      userProvider: {appointment.userProvider.user.name || appointment.userProvider.user.email}
                     </p>
                   </div>
                 </div>

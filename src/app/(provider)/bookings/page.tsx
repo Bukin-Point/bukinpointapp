@@ -11,7 +11,7 @@ import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth 
 export default async function BookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ 
+  searchParams: Promise<{
     providerId?: string
     dateFilter?: string
     dateFrom?: string
@@ -29,7 +29,7 @@ export default async function BookingsPage({
   // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
   const headersList = await headers()
   const subdomainProviderId = headersList.get('x-provider-id')
-  
+
   const params = await searchParams
   // Prioritize subdomain provider ID over URL parameter for security
   const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
@@ -56,19 +56,10 @@ export default async function BookingsPage({
 
   // Build booking where clause
   const bookingWhere: any = { providerId }
-  
+
   // If staff, filter to only their bookings
-  if (!canViewAll && 'staffMember' in accessContext) {
-    const staffMember = await prisma.staffMember.findFirst({
-      where: {
-        providerId,
-        userId: session.user.id,
-      },
-    })
-    
-    if (staffMember) {
-      bookingWhere.staffId = staffMember.id
-    }
+  if (!canViewAll && 'userProvider' in accessContext) {
+    bookingWhere.userProviderId = accessContext.userProvider.id
   }
 
   // Apply date filter
@@ -92,7 +83,7 @@ export default async function BookingsPage({
     }
 
     if (dateStart || dateEnd) {
-      bookingWhere.bookingDate = {}
+      if (!bookingWhere.bookingDate) bookingWhere.bookingDate = {}
       if (dateStart) bookingWhere.bookingDate.gte = dateStart
       if (dateEnd) bookingWhere.bookingDate.lte = dateEnd
     }
@@ -100,7 +91,7 @@ export default async function BookingsPage({
 
   // Apply staff filter
   if (staffId && canViewAll) {
-    bookingWhere.staffId = staffId
+    bookingWhere.userProviderId = staffId
   }
 
   // Apply service filter
@@ -119,7 +110,7 @@ export default async function BookingsPage({
           price: true,
         },
       },
-      staff: {
+      userProvider: {
         include: {
           user: {
             select: {
@@ -139,20 +130,20 @@ export default async function BookingsPage({
     service: { ...b.service, price: Number(b.service.price) },
   }))
 
-  // Fetch staff and services for filter dropdowns
+  // Fetch staff (userProviders) and services for filter dropdowns
   const staff = canViewAll
-    ? await prisma.staffMember.findMany({
-        where: { providerId, isActive: true },
-        include: {
-          user: {
-            select: {
-              name: true,
-              email: true,
-            },
+    ? await prisma.userProvider.findMany({
+      where: { providerId, isActive: true },
+      include: {
+        user: {
+          select: {
+            name: true,
+            email: true,
           },
         },
-        orderBy: { createdAt: 'desc' },
-      })
+      },
+      orderBy: { createdAt: 'desc' },
+    })
     : []
 
   const services = await prisma.service.findMany({
@@ -172,9 +163,9 @@ export default async function BookingsPage({
     price: Number(service.price),
   }))
 
-  // Serialize staff for client component
-  const serializedStaff = staff.map((s) => ({
-    id: s.id,
+  // Serialize staff (userProviders) for client component
+  const serializedUserProviders = staff.map((s) => ({
+    ...s,
     user: s.user,
   }))
 
@@ -186,10 +177,10 @@ export default async function BookingsPage({
           View and manage customer bookings
         </p>
       </div>
-      <BookingList 
-        bookings={bookings} 
+      <BookingList
+        bookings={bookings}
         providerId={providerId}
-        staff={serializedStaff}
+        userProviders={serializedUserProviders}
         services={serializedServices}
         initialFilters={{
           dateFilter: dateFilter || 'all',

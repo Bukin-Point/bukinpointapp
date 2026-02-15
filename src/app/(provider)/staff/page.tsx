@@ -21,7 +21,7 @@ export default async function StaffPage({
   // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
   const headersList = await headers()
   const subdomainProviderId = headersList.get('x-provider-id')
-  
+
   const params = await searchParams
   // Prioritize subdomain provider ID over URL parameter for security
   const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
@@ -48,7 +48,7 @@ export default async function StaffPage({
 
   const providerId = accessContext.provider.id
 
-  const staff = await prisma.staffMember.findMany({
+  const staff = await prisma.userProvider.findMany({
     where: { providerId },
     include: {
       user: {
@@ -57,6 +57,11 @@ export default async function StaffPage({
           name: true,
           email: true,
         },
+      },
+      roles: {
+        include: {
+          role: true
+        }
       },
       services: {
         include: {

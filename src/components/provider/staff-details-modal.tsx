@@ -1,6 +1,6 @@
 'use client'
 
-import { StaffMember } from '@prisma/client'
+import { UserProvider } from '@prisma/client'
 import {
   Dialog,
   DialogContent,
@@ -13,12 +13,17 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Mail, User, Briefcase, CheckCircle, XCircle, Edit } from 'lucide-react'
 
-type StaffWithRelations = StaffMember & {
+type StaffWithRelations = UserProvider & {
   user: {
     id: string
     name: string | null
     email: string
   }
+  roles: Array<{
+    role: {
+      name: string
+    }
+  }>
   services: Array<{
     service: {
       id: string
@@ -43,6 +48,8 @@ export function StaffDetailsModal({
   canEdit = true,
 }: StaffDetailsModalProps) {
   if (!staff) return null
+
+  const roleName = staff.isOwner ? 'OWNER' : (staff.roles[0]?.role.name || 'STAFF')
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -88,8 +95,8 @@ export function StaffDetailsModal({
               <div>
                 <span className="text-text-secondary mb-1">Role</span>
                 <div className="mt-1">
-                  <Badge variant={staff.role === 'OWNER' ? 'default' : 'outline'}>
-                    {staff.role}
+                  <Badge variant={roleName === 'OWNER' ? 'default' : 'outline'}>
+                    {roleName}
                   </Badge>
                 </div>
               </div>

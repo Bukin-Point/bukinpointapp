@@ -79,7 +79,7 @@ export function BulkAvailabilityForm({
     try {
       // Check for conflicts for each selected day
       const conflicts: Array<{ day: string; conflicts: Availability[] }> = []
-      
+
       selectedDays.forEach((dayValue) => {
         const dayConflicts = existingAvailability.filter(
           (av) =>
@@ -89,7 +89,7 @@ export function BulkAvailabilityForm({
               (endTime > av.startTime && endTime <= av.endTime) ||
               (startTime <= av.startTime && endTime >= av.endTime))
         )
-        
+
         if (dayConflicts.length > 0) {
           const dayLabel = DAYS_OF_WEEK.find((d) => d.value === dayValue)?.label || ''
           conflicts.push({ day: dayLabel, conflicts: dayConflicts })
@@ -107,7 +107,7 @@ export function BulkAvailabilityForm({
 
       const result = await createBulkAvailability({
         providerId,
-        staffId,
+        userProviderId: staffId,
         days: selectedDays,
         startTime,
         endTime,

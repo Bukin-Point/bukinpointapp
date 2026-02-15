@@ -46,9 +46,9 @@ async function main() {
   await prisma.availability.deleteMany()
   console.log('✅ Availability deleted')
 
-  console.log('Deleting staff services...')
-  await prisma.staffService.deleteMany()
-  console.log('✅ Staff services deleted')
+  console.log('Deleting user provider services...')
+  await prisma.userProviderService.deleteMany()
+  console.log('✅ User provider services deleted')
 
   console.log('Deleting services...')
   await prisma.service.deleteMany()
@@ -58,9 +58,9 @@ async function main() {
   await prisma.staffInvitation.deleteMany()
   console.log('✅ Staff invitations deleted')
 
-  console.log('Deleting staff members...')
-  await prisma.staffMember.deleteMany()
-  console.log('✅ Staff members deleted')
+  console.log('Deleting user providers...')
+  await prisma.userProvider.deleteMany()
+  console.log('✅ User providers deleted')
 
   console.log('Deleting wallets...')
   await prisma.wallet.deleteMany()

@@ -13,7 +13,7 @@ import { getBookingByRef } from '@/app/book/[providerId]/actions'
 type BookingWithRelations = Booking & {
   service: { name: string; price: number }
   provider: { businessName: string }
-  staff: { user: { name: string | null } }
+  userProvider: { user: { name: string | null } }
 }
 
 export function BookingConfirmation({
@@ -89,7 +89,7 @@ export function BookingConfirmation({
               </div>
               <div>
                 <span className="text-text-secondary">Staff:</span>
-                <p className="font-medium">{booking.staff.user.name || 'Not assigned'}</p>
+                <p className="font-medium">{booking.userProvider.user.name || 'Not assigned'}</p>
               </div>
               <div>
                 <span className="text-text-secondary">Price:</span>

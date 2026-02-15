@@ -35,7 +35,7 @@ export async function createService(data: z.infer<typeof createServiceSchema>) {
       return { error: 'Provider not found' }
     }
 
-    // Create service and auto-assign to provider's staff member in a transaction
+    // Create service and auto-assign to provider's owner user provider in a transaction
     const service = await prisma.$transaction(async (tx) => {
       const newService = await tx.service.create({
         data: {
@@ -49,22 +49,21 @@ export async function createService(data: z.infer<typeof createServiceSchema>) {
         },
       })
 
-      // Find provider's staff member (the provider themselves)
-      const providerStaff = await tx.staffMember.findUnique({
+      // Find provider's owner (UserProvider)
+      const providerOwner = await tx.userProvider.findFirst({
         where: {
-          providerId_userId: {
-            providerId: validated.providerId,
-            userId: provider.userId,
-          },
+          providerId: validated.providerId,
+          userId: provider.userId,
+          isOwner: true,
         },
       })
 
-      // Auto-assign service to provider's staff member if they exist
-      if (providerStaff) {
-        await tx.staffService.createMany({
+      // Auto-assign service to provider's owner if they exist
+      if (providerOwner) {
+        await tx.userProviderService.createMany({
           data: [
             {
-              staffId: providerStaff.id,
+              userProviderId: providerOwner.id,
               serviceId: newService.id,
             },
           ],

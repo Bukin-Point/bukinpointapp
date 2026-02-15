@@ -20,7 +20,7 @@ type BookingWithRelations = Booking & {
     name: string
     price?: number
   }
-  staff: {
+  userProvider: {
     user: {
       name: string | null
       email: string
@@ -137,7 +137,7 @@ export function BookingDetailsModal({
               <div>
                 <span className="text-text-secondary mb-1">Staff</span>
                 <p className="font-medium">
-                  {booking.staff.user.name || booking.staff.user.email}
+                  {booking.userProvider.user.name || booking.userProvider.user.email}
                 </p>
               </div>
             </div>

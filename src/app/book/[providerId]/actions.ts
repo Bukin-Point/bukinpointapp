@@ -6,10 +6,11 @@ import { revalidatePath } from 'next/cache'
 import { lockSlot, releaseSlot, getCachedSlots, setCachedSlots, invalidateSlotCache } from '@/lib/redis'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { getPaymentGateway } from '@/lib/payments/gateway-factory'
+
 const createBookingSchema = z.object({
   providerId: z.string(),
   serviceId: z.string(),
-  staffId: z.string(),
+  staffId: z.string(), // Maps to userProviderId
   userId: z.string().optional(),
   customerName: z.string().min(1, 'Customer name is required'),
   customerPhone: z.string().min(1, 'Phone number is required'),
@@ -33,9 +34,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
     const finalUserId = validated.userId || userId || null
 
     // Create lock key for the slot
-    const lockKey = `slot:${validated.staffId}:${validated.bookingDate.toISOString()}:${
-      validated.startTime
-    }`
+    const lockKey = `slot:${validated.staffId}:${validated.bookingDate.toISOString()}:${validated.startTime}`
 
     // Try to acquire lock (5 minute TTL)
     const lockAcquired = await lockSlot(lockKey, 300)
@@ -61,7 +60,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
       const bookingDateTime = new Date(validated.bookingDate)
       const [hours, minutes] = validated.startTime.split(':').map(Number)
       bookingDateTime.setHours(hours, minutes, 0, 0)
-      
+
       // Require booking to be at least 15 minutes in the future
       const minBookingTime = new Date(now.getTime() + 15 * 60 * 1000)
       if (bookingDateTime < minBookingTime) {
@@ -73,7 +72,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
       const abandonedBefore = new Date(Date.now() - 30 * 60 * 1000)
       const conflictingBooking = await prisma.booking.findFirst({
         where: {
-          staffId: validated.staffId,
+          userProviderId: validated.staffId, // Updated from staffId
           bookingDate: validated.bookingDate,
           status: { notIn: ['CANCELLED'] },
           // Don't treat as conflict: PENDING + payment PENDING and created >30 min ago (OPay expireAt)
@@ -111,7 +110,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
         data: {
           providerId: validated.providerId,
           serviceId: validated.serviceId,
-          staffId: validated.staffId,
+          userProviderId: validated.staffId, // Updated from staffId to userProviderId
           userId: finalUserId,
           customerName: validated.customerName,
           customerPhone: validated.customerPhone,
@@ -125,7 +124,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
         include: {
           service: true,
           provider: true,
-          staff: {
+          userProvider: { // Updated from staff
             include: {
               user: true,
             },
@@ -142,7 +141,14 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
       )
 
       revalidatePath(`/book/${validated.providerId}`)
-      return { success: true, booking, lockKey }
+      return {
+        success: true,
+        booking: {
+          ...booking,
+          service: { ...booking.service, price: Number(booking.service.price) }
+        },
+        lockKey
+      }
     } catch (error) {
       // Release lock on error
       await releaseSlot(lockKey)
@@ -176,8 +182,9 @@ export async function getAvailableSlots(data: {
 
     const dayOfWeek = date.getDay()
 
-    // Get staff who can provide this service
-    const staff = await prisma.staffMember.findMany({
+    // Get userProviders who can provide this service
+    // Updated from prisma.staffMember to prisma.userProvider
+    const staff = await prisma.userProvider.findMany({
       where: {
         providerId: data.providerId,
         isActive: true,
@@ -194,6 +201,7 @@ export async function getAvailableSlots(data: {
             isBlocked: false,
           },
         },
+        // Updated relation name in Booking from staff to userProvider
         bookings: {
           where: {
             bookingDate: date,
@@ -201,6 +209,12 @@ export async function getAvailableSlots(data: {
               notIn: ['CANCELLED'],
             },
           },
+        },
+        user: {
+          select: {
+            name: true,
+            email: true
+          }
         },
       },
     })
@@ -297,7 +311,7 @@ export async function getAvailableDays(data: {
     const daysAhead = data.daysAhead || 30
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     const availableDays: string[] = []
 
     // Get service details
@@ -310,7 +324,8 @@ export async function getAvailableDays(data: {
     }
 
     // Get staff who can provide this service
-    const staff = await prisma.staffMember.findMany({
+    // Updated from prisma.staffMember to prisma.userProvider
+    const staff = await prisma.userProvider.findMany({
       where: {
         providerId: data.providerId,
         isActive: true,
@@ -346,16 +361,16 @@ export async function getAvailableDays(data: {
 
         if (dayAvailability.length === 0) continue
 
-            // Check existing bookings for this date
-            const existingBookings = await prisma.booking.findMany({
-              where: {
-                staffId: member.id,
-                bookingDate: checkDate,
-                status: {
-                  notIn: ['CANCELLED'],
-                },
-              },
-            })
+        // Check existing bookings for this date
+        const existingBookings = await prisma.booking.findMany({
+          where: {
+            userProviderId: member.id, // Updated from staffId
+            bookingDate: checkDate,
+            status: {
+              notIn: ['CANCELLED'],
+            },
+          },
+        })
 
         // Generate potential slots and check if any are available
         for (const av of dayAvailability) {
@@ -416,7 +431,7 @@ export async function getBookingByRef(bookingRef: string) {
     include: {
       service: true,
       provider: { select: { businessName: true } },
-      staff: { include: { user: { select: { name: true } } } },
+      userProvider: { include: { user: { select: { name: true } } } }, // Updated from staff
     },
   })
   if (!booking) return { error: 'Booking not found' }
@@ -435,7 +450,7 @@ export async function getBookingByRef(bookingRef: string) {
 export async function initiateBookingPayment(bookingRef: string) {
   const booking = await prisma.booking.findUnique({
     where: { bookingRef },
-    include: { service: true, provider: true, staff: { include: { user: true } } },
+    include: { service: true, provider: true, userProvider: { include: { user: true } } }, // Updated from staff
   })
   if (!booking) return { error: 'Booking not found' }
   if (booking.paymentStatus === 'PAID') return { error: 'Booking is already paid.' }
@@ -453,6 +468,11 @@ export async function initiateBookingPayment(bookingRef: string) {
   const gateway = await getPaymentGateway(booking.providerId)
   const callbackPath = gateway.name === 'PAYSTACK' ? '/api/webhooks/paystack' : '/api/webhooks/opay'
 
+  // For Paystack, 'callbackUrl' is the redirect URL after payment. 
+  // We should redirect to the confirmation page, NOT the webhook API.
+  // Ideally, the confirmation page will verify the transaction client-side or server-side on load.
+  const paystackRedirectUrl = `${baseUrl}/book/${booking.providerId}/confirm?ref=${booking.bookingRef}`
+
   const result = await gateway.initializePayment({
     bookingId: booking.id,
     reference: booking.bookingRef,
@@ -461,7 +481,8 @@ export async function initiateBookingPayment(bookingRef: string) {
     customerEmail: booking.customerEmail ?? booking.customerName,
     customerName: booking.customerName,
     customerPhone: booking.customerPhone,
-    callbackUrl: `${baseUrl}${callbackPath}`,
+    // Paystack uses callbackUrl for redirect; OPay uses callbackUrl for server-server notification
+    callbackUrl: gateway.name === 'PAYSTACK' ? paystackRedirectUrl : `${baseUrl}${callbackPath}`,
     returnUrl: `${baseUrl}/book/${booking.providerId}/confirm?ref=${booking.bookingRef}`,
     cancelUrl: `${baseUrl}/book/${booking.providerId}?payment=cancelled`,
     productName: booking.service.name,

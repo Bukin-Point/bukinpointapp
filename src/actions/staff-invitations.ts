@@ -9,7 +9,7 @@ import { sendStaffInvitationEmail } from '@/lib/email'
 const sendInvitationSchema = z.object({
   providerId: z.string(),
   email: z.string().email('Invalid email address'),
-  role: z.enum(['OWNER', 'STAFF']).default('STAFF'),
+  role: z.enum(['OWNER', 'STAFF', 'PROVIDER']).default('STAFF'),
   serviceIds: z.array(z.string()).default([]),
 })
 
@@ -41,17 +41,15 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
 
     if (existingUser) {
       // Check if they're already a staff member
-      const existingStaff = await prisma.staffMember.findUnique({
+      const existingMember = await prisma.userProvider.findFirst({
         where: {
-          providerId_userId: {
-            providerId: validated.providerId,
-            userId: existingUser.id,
-          },
+          providerId: validated.providerId,
+          userId: existingUser.id,
         },
       })
 
-      if (existingStaff) {
-        return { error: 'This user is already a staff member' }
+      if (existingMember) {
+        return { error: 'This user is already a member of this provider' }
       }
     }
 
@@ -78,12 +76,20 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)
 
+    // Default role ID handling
+    let roleId: string | null = null;
+    const roleName = validated.role === 'OWNER' ? 'OWNER' : 'STAFF';
+    const role = await prisma.role.findUnique({ where: { name: roleName } });
+    if (role) {
+      roleId = role.id;
+    }
+
     const invitation = await prisma.staffInvitation.create({
       data: {
         providerId: validated.providerId,
         email: validated.email,
         token,
-        role: validated.role,
+        roleId: roleId,
         serviceIds: JSON.stringify(validated.serviceIds),
         expiresAt,
       },
@@ -98,7 +104,7 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
 
     // Send invitation email
     const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/signup/staff?token=${token}`
-    
+
     const emailResult = await sendStaffInvitationEmail({
       email: validated.email,
       businessName: invitation.provider.businessName,
@@ -109,15 +115,13 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
     // Log email result (success or failure)
     if (!emailResult.success) {
       console.error('Failed to send invitation email:', emailResult.error)
-      // Still return success since invitation is created
-      // In production, you might want to handle this differently (e.g., queue for retry)
     }
 
     revalidatePath('/staff')
     const isDevelopment = process.env.NODE_ENV === 'development'
-    return { 
-      success: true, 
-      invitation, 
+    return {
+      success: true,
+      invitation,
       invitationUrl,
       emailSent: emailResult.success,
       emailError: emailResult.error,
@@ -159,7 +163,19 @@ export async function getInvitationByToken(token: string) {
       return { error: 'This invitation has expired' }
     }
 
-    return { success: true, invitation }
+    // Fetch role name if roleId exists
+    let roleName = 'STAFF'
+    if (invitation.roleId) {
+      const role = await prisma.role.findUnique({
+        where: { id: invitation.roleId },
+        select: { name: true },
+      })
+      if (role) {
+        roleName = role.name
+      }
+    }
+
+    return { success: true, invitation, roleName }
   } catch (error) {
     console.error('Error getting invitation:', error)
     return { error: 'Failed to validate invitation' }
@@ -213,19 +229,17 @@ export async function createStaffFromInvitation(
   invitation: {
     id: string
     providerId: string
-    role: 'OWNER' | 'STAFF'
+    roleId?: string | null
     serviceIds: string
   },
   userId: string
 ) {
   try {
     // Check if staff member already exists for this provider
-    const existing = await prisma.staffMember.findUnique({
+    const existing = await prisma.userProvider.findFirst({
       where: {
-        providerId_userId: {
-          providerId: invitation.providerId,
-          userId,
-        },
+        providerId: invitation.providerId,
+        userId,
       },
     })
 
@@ -239,11 +253,11 @@ export async function createStaffFromInvitation(
       revalidatePath('/staff')
       revalidatePath('/dashboard')
       revalidatePath('/onboarding')
-      return { success: true, staffMember: existing }
+      return { success: true, userProvider: existing }
     }
 
     // Check if user is already staff for another provider
-    const otherStaffMemberships = await prisma.staffMember.findMany({
+    const otherMemberships = await prisma.userProvider.findMany({
       where: {
         userId,
         providerId: { not: invitation.providerId },
@@ -257,10 +271,9 @@ export async function createStaffFromInvitation(
       },
     })
 
-    if (otherStaffMemberships.length > 0) {
-      // User is already staff for another provider - this is allowed, but we'll log it
+    if (otherMemberships.length > 0) {
       console.log(
-        `User ${userId} is already staff for ${otherStaffMemberships.length} other provider(s). Proceeding with invitation acceptance.`
+        `User ${userId} is already member for ${otherMemberships.length} other provider(s). Proceeding with invitation acceptance.`
       )
     }
 
@@ -268,6 +281,7 @@ export async function createStaffFromInvitation(
     const serviceIds = JSON.parse(invitation.serviceIds || '[]') as string[]
 
     // Validate that all services belong to this provider
+    let validServiceIds: string[] = []
     if (serviceIds.length > 0) {
       const validServices = await prisma.service.findMany({
         where: {
@@ -277,39 +291,49 @@ export async function createStaffFromInvitation(
         select: { id: true },
       })
 
-      const validServiceIds = validServices.map((s) => s.id)
-      const invalidServiceIds = serviceIds.filter((id) => !validServiceIds.includes(id))
-
-      if (invalidServiceIds.length > 0) {
-        console.warn(
-          `Some service IDs in invitation do not belong to provider ${invitation.providerId}:`,
-          invalidServiceIds
-        )
-        // Filter out invalid service IDs
-        const filteredServiceIds = serviceIds.filter((id) => validServiceIds.includes(id))
-        serviceIds.length = 0
-        serviceIds.push(...filteredServiceIds)
-      }
+      validServiceIds = validServices.map((s) => s.id)
     }
 
-    // Create staff member and assign services
-    const staffMember = await prisma.$transaction(async (tx) => {
-      const newStaff = await tx.staffMember.create({
+    // Create user provider and assign services
+    const userProvider = await prisma.$transaction(async (tx) => {
+
+      let roleId = invitation.roleId;
+
+      // If no roleId on invitation, check for default STAFF role
+      if (!roleId) {
+        const defaultRole = await tx.role.findUnique({ where: { name: 'STAFF' } });
+        roleId = defaultRole?.id;
+      }
+
+      const isOwner = false; // By default invitations are for staff, unless specifically OWNER role is invited (which we should probably support but keeping safe for now)
+
+      const newMember = await tx.userProvider.create({
         data: {
           providerId: invitation.providerId,
           userId,
-          role: invitation.role,
+          isOwner,
+          isActive: true
         },
       })
 
+      // Assign Role if found
+      if (roleId) {
+        await tx.userProviderRole.create({
+          data: {
+            userProviderId: newMember.id,
+            roleId: roleId
+          }
+        })
+      }
+
       // Assign services (only valid ones)
-      if (serviceIds.length > 0) {
-        await tx.staffService.createMany({
-          data: serviceIds.map((serviceId) => ({
-            staffId: newStaff.id,
+      if (validServiceIds.length > 0) {
+        await tx.userProviderService.createMany({
+          data: validServiceIds.map((serviceId) => ({
+            userProviderId: newMember.id,
             serviceId,
           })),
-          skipDuplicates: true, // Skip if already exists
+          skipDuplicates: true,
         })
       }
 
@@ -319,34 +343,19 @@ export async function createStaffFromInvitation(
         data: { acceptedAt: new Date() },
       })
 
-      return newStaff
+      return newMember
     })
 
-    // Note: revalidatePath removed - cannot be called during render.
-    // Pages will be revalidated on next request after redirect.
-    return { success: true, staffMember }
+    return { success: true, userProvider }
   } catch (error: any) {
     console.error('Error creating staff from invitation:', error)
-    
+
     // Provide more specific error messages
     if (error?.code === 'P2002') {
-      // Unique constraint violation
-      return { error: 'You are already a staff member for this provider' }
-    }
-    
-    if (error?.code === 'P2003') {
-      // Foreign key constraint violation
-      return { error: 'Invalid provider or service reference. Please contact support.' }
+      return { error: 'You are already a member of this provider' }
     }
 
-    // Log the full error for debugging
-    console.error('Full error details:', {
-      message: error?.message,
-      code: error?.code,
-      meta: error?.meta,
-    })
-
-    return { error: error?.message || 'Failed to create staff member. Please contact support if this issue persists.' }
+    return { error: error?.message || 'Failed to join provider. Please contact support.' }
   }
 }
 
@@ -388,10 +397,6 @@ export async function cancelInvitation(invitationId: string) {
   }
 }
 
-/**
- * Check and accept any pending invitations for a user by email
- * This is called after login to automatically accept invitations
- */
 export async function checkAndAcceptPendingInvitations(userId: string, email: string) {
   try {
     // Find pending or accepted invitations for this email
@@ -407,19 +412,17 @@ export async function checkAndAcceptPendingInvitations(userId: string, email: st
       return { success: false, message: 'No pending invitation found' }
     }
 
-    // If already accepted, check if staff member exists
+    // If already accepted, check if member exists
     if (invitation.acceptedAt) {
-      const existingStaff = await prisma.staffMember.findUnique({
+      const existingMember = await prisma.userProvider.findFirst({
         where: {
-          providerId_userId: {
-            providerId: invitation.providerId,
-            userId,
-          },
+          providerId: invitation.providerId,
+          userId,
         },
       })
 
-      if (existingStaff) {
-        return { success: true, message: 'Staff member already exists' }
+      if (existingMember) {
+        return { success: true, message: 'Member already exists' }
       }
     }
 

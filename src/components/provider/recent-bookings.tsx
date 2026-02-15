@@ -13,7 +13,7 @@ type BookingWithRelations = Booking & {
     id: string
     name: string
   }
-  staff: {
+  userProvider: {
     user: {
       name: string | null
       email: string

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { BookingTable } from './booking-table'
-import { BookingFormModal } from './booking-form-modal'
+import { BookingFormModal, type UserProviderWithUser } from './booking-form-modal'
 import { BookingDetailsModal } from './booking-details-modal'
 import { RescheduleBookingModal } from './reschedule-booking-modal'
 import { updateBookingStatus, cancelBooking } from '@/actions/bookings'
@@ -22,7 +22,7 @@ type BookingWithRelations = Booking & {
     name: string
     price?: number
   }
-  staff: {
+  userProvider: {
     id: string
     user: {
       name: string | null
@@ -31,18 +31,11 @@ type BookingWithRelations = Booking & {
   }
 }
 
-type StaffWithUser = {
-  id: string
-  user: {
-    name: string | null
-    email: string
-  }
-}
 
 interface BookingListProps {
   bookings: BookingWithRelations[]
   providerId: string
-  staff: StaffWithUser[]
+  userProviders: UserProviderWithUser[]
   services: Array<{ id: string; name: string; duration: number; price: number }>
   initialFilters?: {
     dateFilter?: string
@@ -53,10 +46,10 @@ interface BookingListProps {
   }
 }
 
-export function BookingList({ 
-  bookings: initialBookings, 
+export function BookingList({
+  bookings: initialBookings,
   providerId,
-  staff,
+  userProviders,
   services,
   initialFilters,
 }: BookingListProps) {
@@ -119,7 +112,7 @@ export function BookingList({
 
   const updateFilters = (newFilters: Record<string, string | undefined>) => {
     const params = new URLSearchParams(searchParams.toString())
-    
+
     Object.entries(newFilters).forEach(([key, value]) => {
       if (value && value !== 'all' && value !== '') {
         params.set(key, value)
@@ -139,7 +132,7 @@ export function BookingList({
   }
 
   const handleDateRangeChange = () => {
-    updateFilters({ 
+    updateFilters({
       dateFilter: dateFrom || dateTo ? 'custom' : undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
@@ -266,12 +259,12 @@ export function BookingList({
   const staffOptions = useMemo(
     () => [
       { value: 'all', label: 'All Staff' },
-      ...staff.map((s) => ({
+      ...userProviders.map((s) => ({
         value: s.id,
         label: s.user.name || s.user.email,
       })),
     ],
-    [staff]
+    [userProviders]
   )
 
   const serviceOptions = useMemo(
@@ -393,7 +386,7 @@ export function BookingList({
           </div>
         </div>
 
-        {staff.length > 0 && (
+        {userProviders.length > 0 && (
           <div className="space-y-2 w-full sm:min-w-[160px]">
             <label className="text-body-sm font-medium">Staff</label>
             <Combobox
@@ -450,7 +443,7 @@ export function BookingList({
       <BookingFormModal
         providerId={providerId}
         services={services}
-        staff={staff}
+        staff={userProviders}
         open={isBookingModalOpen}
         onOpenChange={setIsBookingModalOpen}
         onSuccess={handleBookingCreated}

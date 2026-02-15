@@ -21,7 +21,7 @@ export default async function AvailabilityPage({
   // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
   const headersList = await headers()
   const subdomainProviderId = headersList.get('x-provider-id')
-  
+
   const params = await searchParams
   // Prioritize subdomain provider ID over URL parameter for security
   const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
@@ -47,18 +47,18 @@ export default async function AvailabilityPage({
 
   // If staff (not OWNER), only show their own availability
   const staffWhere: any = { providerId, isActive: true }
-  
+
   if (userIsStaff && !canManage) {
     // STAFF role can only see their own availability
-    const staffMember = await prisma.staffMember.findFirst({
+    const userProvider = await prisma.userProvider.findFirst({
       where: {
         providerId,
         userId: session.user.id,
       },
     })
-    
-    if (staffMember) {
-      staffWhere.id = staffMember.id
+
+    if (userProvider) {
+      staffWhere.id = userProvider.id
     } else {
       redirect('/dashboard')
     }
@@ -73,7 +73,7 @@ export default async function AvailabilityPage({
     redirect('/onboarding')
   }
 
-  const staff = await prisma.staffMember.findMany({
+  const staff = await prisma.userProvider.findMany({
     where: staffWhere,
     include: {
       user: {
@@ -99,7 +99,7 @@ export default async function AvailabilityPage({
             : 'Set your working hours and availability'}
         </p>
       </div>
-      <AvailabilityManager staff={staff} providerId={providerId} timezone={provider.timezone} canManage={canManage} />
+      <AvailabilityManager userProviders={staff} providerId={providerId} timezone={provider.timezone} canManage={canManage} />
     </div>
   )
 }

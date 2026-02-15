@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Provider, StaffMember } from '@prisma/client'
+import { Provider, UserProvider } from '@prisma/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns'
 import { getAvailableSlots, getAvailableDays } from '@/app/book/[providerId]/actions'
 import { useQuery } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
 
 // Serialized Service type with price as number instead of Decimal
 type SerializedService = Omit<import('@prisma/client').Service, 'price'> & {
@@ -14,7 +15,7 @@ type SerializedService = Omit<import('@prisma/client').Service, 'price'> & {
 }
 
 type ProviderWithRelations = Provider & {
-  staff: (StaffMember & {
+  userProviders: (UserProvider & {
     user: {
       name: string | null
       email: string
@@ -28,26 +29,25 @@ type ProviderWithRelations = Provider & {
 interface TimePickerProps {
   provider: ProviderWithRelations
   service: SerializedService
-  selectedStaff: StaffMember | null
-  onSelect: (date: Date, time: string, staff: StaffMember) => void
+  selectedUserProvider: UserProvider | null
+  onSelect: (date: Date, time: string, userProvider: UserProvider) => void
   onBack: () => void
 }
 
-export function TimePicker({ provider, service, selectedStaff, onSelect, onBack }: TimePickerProps) {
+export function TimePicker({ provider, service, selectedUserProvider, onSelect, onBack }: TimePickerProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [selectedTime, setSelectedTime] = useState<string>('')
-  const [availableSlots, setAvailableSlots] = useState<Array<{ time: string; staff: StaffMember }>>([])
+  const [availableSlots, setAvailableSlots] = useState<Array<{ time: string; staff: UserProvider }>>([])
   const [availableDays, setAvailableDays] = useState<Set<string>>(new Set())
-  const [allPossibleSlots, setAllPossibleSlots] = useState<Array<{ time: string; staff: StaffMember }>>([])
-  const [loading, setLoading] = useState(false)
+  const [allPossibleSlots, setAllPossibleSlots] = useState<Array<{ time: string; userProvider: UserProvider }>>([])
   const [loadingDays, setLoadingDays] = useState(false)
 
   // Get staff who can provide this service - memoize to prevent infinite loops
-  const availableStaff = useMemo(() => 
-    provider.staff.filter((staff) =>
-      staff.services.some((ss) => ss.service.id === service.id)
+  const availableUserProviders = useMemo(() =>
+    provider.userProviders.filter((up) =>
+      up.services.some((ss) => ss.service.id === service.id)
     ),
-    [provider.staff, service.id]
+    [provider.userProviders, service.id]
   )
 
   // Fetch available days on mount
@@ -88,23 +88,27 @@ export function TimePicker({ provider, service, selectedStaff, onSelect, onBack 
 
   useEffect(() => {
     if (slotsData?.slots) {
-      setAvailableSlots(slotsData.slots)
+      // The action still returns 'staff' property for now, mapping it to local state
+      // We kept 'staff' property in getAvailableSlots return type in actions.ts for compatibility during migration,
+      // but under the hood it returns UserProvider objects.
+      setAvailableSlots(slotsData.slots as Array<{ time: string; staff: UserProvider }>)
     }
   }, [slotsData?.slots])
 
   // Generate all possible slots separately to avoid infinite loops
   useEffect(() => {
-    const allSlots: Array<{ time: string; staff: StaffMember }> = []
+    const allSlots: Array<{ time: string; userProvider: UserProvider }> = []
+    // 8 AM to 8 PM
     for (let hour = 8; hour < 20; hour++) {
       for (let minute = 0; minute < 60; minute += 15) {
         const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-        availableStaff.forEach(staff => {
-          allSlots.push({ time: timeString, staff })
+        availableUserProviders.forEach(up => {
+          allSlots.push({ time: timeString, userProvider: up })
         })
       }
     }
     setAllPossibleSlots(allSlots)
-  }, [availableStaff])
+  }, [availableUserProviders])
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date)
@@ -131,7 +135,10 @@ export function TimePicker({ provider, service, selectedStaff, onSelect, onBack 
         <div>
           <h3 className="mb-3 text-body-sm font-medium">Select Date</h3>
           {loadingDays ? (
-            <p className="text-caption text-text-secondary">Loading available dates...</p>
+            <div className="flex items-center gap-2 text-caption text-text-secondary">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading available dates...
+            </div>
           ) : (
             <div className="grid grid-cols-7 gap-2">
               {dates.map((date) => {
@@ -143,13 +150,12 @@ export function TimePicker({ provider, service, selectedStaff, onSelect, onBack 
                     type="button"
                     onClick={() => isAvailable && handleDateSelect(date)}
                     disabled={!isAvailable}
-                    className={`calendar-date rounded-md p-2 text-sm transition-colors ${
-                      isSelected
+                    className={`calendar-date rounded-md p-2 text-sm transition-colors ${isSelected
                         ? 'calendar-date-selected bg-primary text-primary-foreground'
                         : isAvailable
-                        ? 'hover:bg-gray-100 border border-input'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 border border-gray-200'
-                    }`}
+                          ? 'hover:bg-gray-100 border border-input'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 border border-gray-200'
+                      }`}
                     title={!isAvailable ? 'No available slots for this date' : ''}
                   >
                     <div className="font-medium">{format(date, 'd')}</div>
@@ -167,43 +173,46 @@ export function TimePicker({ provider, service, selectedStaff, onSelect, onBack 
               Available Times for {format(selectedDate, 'MMMM d, yyyy')}
             </h3>
             {isLoadingSlots ? (
-              <p className="text-caption">Loading available slots...</p>
+              <div className="flex items-center gap-2 text-caption">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Loading available slots...
+              </div>
             ) : availableSlots.length === 0 && allPossibleSlots.length === 0 ? (
               <p className="text-caption text-text-secondary">No available slots for this date</p>
             ) : (
               <div className="grid grid-cols-4 gap-2">
                 {allPossibleSlots.map((slot, index) => {
+                  // Check availability using the 'staff' property from server response which is actually UserProvider
                   const isAvailable = availableSlots.some(
-                    s => s.time === slot.time && s.staff.id === slot.staff.id
+                    s => s.time === slot.time && s.staff.id === slot.userProvider.id
                   )
-                  
+
                   // Check if time is in the past (for today's date)
                   const isPastTime = (() => {
                     if (!selectedDate) return false
                     const today = new Date()
                     const isToday = selectedDate.toDateString() === today.toDateString()
                     if (!isToday) return false
-                    
+
                     const [slotHour, slotMin] = slot.time.split(':').map(Number)
                     const now = new Date()
                     const slotTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), slotHour, slotMin)
                     const minTime = new Date(now.getTime() + 15 * 60 * 1000) // 15 minutes from now
                     return slotTime < minTime
                   })()
-                  
+
                   const isDisabled = !isAvailable || isPastTime
-                  
+
                   return (
                     <button
                       key={index}
                       type="button"
-                      onClick={() => !isDisabled && onSelect(selectedDate, slot.time, slot.staff)}
+                      onClick={() => !isDisabled && onSelect(selectedDate, slot.time, slot.userProvider)}
                       disabled={isDisabled}
-                      className={`time-slot rounded-md border-2 p-2 text-sm font-medium transition-colors ${
-                        !isDisabled
+                      className={`time-slot rounded-md border-2 p-2 text-sm font-medium transition-colors ${!isDisabled
                           ? 'border-gray-300 hover:border-primary hover:bg-primary-50 cursor-pointer'
                           : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
-                      }`}
+                        }`}
                       title={isPastTime ? 'Cannot book past times' : !isAvailable ? 'This time slot is not available' : ''}
                     >
                       {slot.time}

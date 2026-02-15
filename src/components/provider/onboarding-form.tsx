@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -28,7 +29,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
+
     // Validate required fields
     if (!formData.businessName || !formData.industry || !formData.phone || !formData.email || !formData.timezone) {
       toast({
@@ -71,7 +72,7 @@ export function OnboardingForm({ userId }: { userId: string }) {
 
           // Redirect to subdomain dashboard after onboarding
           const subdomainDashboardUrl = `${subdomainUrl}/dashboard`
-          
+
           // Use window.location for cross-domain redirect
           window.location.href = subdomainDashboardUrl
         } else {
@@ -227,7 +228,14 @@ export function OnboardingForm({ userId }: { userId: string }) {
         </CardContent>
         <CardFooter>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating profile...' : 'Complete Setup'}
+            {loading ? (
+              <>
+                <Spinner className="mr-2 h-4 w-4" />
+                Creating profile...
+              </>
+            ) : (
+              'Complete Setup'
+            )}
           </Button>
         </CardFooter>
       </form>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { StaffMember } from '@prisma/client'
+import { UserProvider } from '@prisma/client'
 import { SerializedService } from './service-list'
 import { Button } from '@/components/ui/button'
 import { StaffTable } from '@/components/provider/staff-table'
@@ -19,12 +19,17 @@ import { deleteStaff, toggleStaffStatus } from '@/actions/staff'
 import { Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
-type StaffWithRelations = StaffMember & {
+type StaffWithRelations = UserProvider & {
   user: {
     id: string
     name: string | null
     email: string
   }
+  roles: Array<{
+    role: {
+      name: string
+    }
+  }>
   services: Array<{
     service: {
       id: string

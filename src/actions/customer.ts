@@ -33,7 +33,7 @@ export async function getCustomerBookings(userId: string, email?: string) {
             duration: true,
           },
         },
-        staff: {
+        userProvider: {
           include: {
             user: {
               select: {
@@ -77,7 +77,7 @@ export async function getCustomerBookings(userId: string, email?: string) {
               duration: true,
             },
           },
-          staff: {
+          userProvider: {
             include: {
               user: {
                 select: {

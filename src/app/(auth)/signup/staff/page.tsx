@@ -44,10 +44,10 @@ export default async function StaffSignUpPage({
         <div className="text-center">
           <h1 className="text-h1 mb-2">Join {invitation.provider.businessName}</h1>
           <p className="text-body-sm text-text-secondary">
-            You've been invited to join as {invitation.role === 'OWNER' ? 'an Owner' : 'Staff'}
+            You've been invited to join as {invitationResult.roleName === 'OWNER' ? 'an Owner' : 'Staff'}
           </p>
         </div>
-        <StaffSignUpFormClerk 
+        <StaffSignUpFormClerk
           invitationToken={token}
           invitationEmail={invitation.email}
         />

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { UserProvider } from '@prisma/client'
 import {
   Dialog,
   DialogContent,
@@ -27,8 +28,7 @@ type Service = {
   price: number
 }
 
-type StaffMember = {
-  id: string
+export type UserProviderWithUser = UserProvider & {
   user: {
     name: string | null
     email: string
@@ -38,7 +38,7 @@ type StaffMember = {
 interface BookingFormModalProps {
   providerId: string
   services: Service[]
-  staff: StaffMember[]
+  staff: UserProviderWithUser[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
@@ -64,8 +64,8 @@ export function BookingFormModal({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedTime, setSelectedTime] = useState<string>('')
   const [overrideAvailability, setOverrideAvailability] = useState(false)
-  const [availableSlots, setAvailableSlots] = useState<Array<{ time: string; staff: StaffMember }>>([])
-  const [allPossibleSlots, setAllPossibleSlots] = useState<Array<{ time: string; staff: StaffMember }>>([])
+  const [availableSlots, setAvailableSlots] = useState<Array<{ time: string; staff: UserProviderWithUser }>>([])
+  const [allPossibleSlots, setAllPossibleSlots] = useState<Array<{ time: string; staff: UserProviderWithUser }>>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
 
   // Customer details
@@ -76,7 +76,7 @@ export function BookingFormModal({
 
   // Get selected service
   const selectedService = services.find(s => s.id === selectedServiceId)
-  
+
   // Get available staff for selected service
   // Note: We'll show all staff and let the server validate service assignment
   const availableStaffForService = selectedServiceId ? staff : []
@@ -139,9 +139,9 @@ export function BookingFormModal({
 
       // If override mode, generate all possible slots for selected staff
       if (overrideAvailability && selectedService && selectedStaffId) {
-        const allSlots: Array<{ time: string; staff: StaffMember }> = []
+        const allSlots: Array<{ time: string; staff: UserProviderWithUser }> = []
         const selectedStaffMember = availableStaffForService.find(s => s.id === selectedStaffId)
-        
+
         if (selectedStaffMember) {
           // Generate slots from 8:00 to 20:00 in 15-minute intervals
           for (let hour = 8; hour < 20; hour++) {
@@ -375,11 +375,10 @@ export function BookingFormModal({
                         key={date.toISOString()}
                         type="button"
                         onClick={() => handleDateSelect(date)}
-                        className={`rounded-md p-2 text-sm border transition-colors ${
-                          selectedDate && isSameDay(date, selectedDate)
-                            ? 'bg-primary text-primary-foreground border-primary'
-                            : 'hover:bg-muted border-input'
-                        }`}
+                        className={`rounded-md p-2 text-sm border transition-colors ${selectedDate && isSameDay(date, selectedDate)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'hover:bg-muted border-input'
+                          }`}
                       >
                         <div className="font-medium">{format(date, 'd')}</div>
                         <div className="text-xs">{format(date, 'EEE')}</div>
@@ -393,17 +392,17 @@ export function BookingFormModal({
                     <Label className="mb-2 block">
                       Available Times for {format(selectedDate, 'MMMM d, yyyy')}
                     </Label>
-                  {loadingSlots ? (
-                    <p className="text-caption text-text-secondary">Loading slots...</p>
-                  ) : !selectedStaffId ? (
-                    <p className="text-caption text-text-secondary">
-                      Please select a staff member first
-                    </p>
-                  ) : slotsToDisplay.length === 0 ? (
-                    <p className="text-caption text-text-secondary">
-                      {overrideAvailability ? 'Select a time slot (override mode - any time allowed)' : 'No available slots for this date. Try selecting a different date or enable override mode.'}
-                    </p>
-                  ) : (
+                    {loadingSlots ? (
+                      <p className="text-caption text-text-secondary">Loading slots...</p>
+                    ) : !selectedStaffId ? (
+                      <p className="text-caption text-text-secondary">
+                        Please select a staff member first
+                      </p>
+                    ) : slotsToDisplay.length === 0 ? (
+                      <p className="text-caption text-text-secondary">
+                        {overrideAvailability ? 'Select a time slot (override mode - any time allowed)' : 'No available slots for this date. Try selecting a different date or enable override mode.'}
+                      </p>
+                    ) : (
                       <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
                         {slotsToDisplay.map((slot, index) => {
                           const isAvailable = availableSlots.some(s => s.time === slot.time && s.staff.id === slot.staff.id)
@@ -413,13 +412,12 @@ export function BookingFormModal({
                               type="button"
                               onClick={() => handleTimeSelect(slot.time)}
                               disabled={!overrideAvailability && !isAvailable}
-                              className={`rounded-md border-2 p-2 text-sm font-medium transition-colors ${
-                                selectedTime === slot.time
-                                  ? 'border-primary bg-primary-50'
-                                  : !overrideAvailability && !isAvailable
+                              className={`rounded-md border-2 p-2 text-sm font-medium transition-colors ${selectedTime === slot.time
+                                ? 'border-primary bg-primary-50'
+                                : !overrideAvailability && !isAvailable
                                   ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
                                   : 'border-gray-300 hover:border-primary hover:bg-primary-50'
-                              }`}
+                                }`}
                             >
                               {slot.time}
                             </button>

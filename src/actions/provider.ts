@@ -76,39 +76,36 @@ export async function createProvider(data: z.infer<typeof createProviderSchema>)
         },
       })
 
-      // Automatically create staff member for the provider (for small businesses)
+      // Automatically create user provider entry for the provider (as owner)
       // This allows providers to immediately accept bookings without manual setup
-      // Check if staff member already exists (idempotent)
-      const existingStaff = await tx.staffMember.findUnique({
+      const existingUserProvider = await tx.userProvider.findFirst({
         where: {
-          providerId_userId: {
-            providerId: newProvider.id,
-            userId: validated.userId,
-          },
+          providerId: newProvider.id,
+          userId: validated.userId,
         },
       })
 
-      if (!existingStaff) {
-        // Check if user is already staff for another provider (constraint check)
-        const existingStaffForOtherProvider = await tx.staffMember.findFirst({
-          where: {
+      if (!existingUserProvider) {
+        // Create UserProvider
+        const userProvider = await tx.userProvider.create({
+          data: {
+            providerId: newProvider.id,
             userId: validated.userId,
-            providerId: { not: newProvider.id },
+            isOwner: true,
+            isActive: true,
           },
         })
 
-        if (existingStaffForOtherProvider) {
-          // User is already staff for another provider - skip auto-creation
-          // This is allowed (user can be provider for one business and staff for another)
-          // But we won't auto-create staff member in this case
-        } else {
-          // Create staff member for the provider
-          await tx.staffMember.create({
+        // Try to assign OWNER role if it exists (system role)
+        const ownerRole = await tx.role.findFirst({
+          where: { name: 'OWNER' },
+        })
+
+        if (ownerRole) {
+          await tx.userProviderRole.create({
             data: {
-              providerId: newProvider.id,
-              userId: validated.userId,
-              role: 'OWNER',
-              isActive: true,
+              userProviderId: userProvider.id,
+              roleId: ownerRole.id,
             },
           })
         }
@@ -159,39 +156,35 @@ export async function createProvider(data: z.infer<typeof createProviderSchema>)
             },
           })
 
-          // Automatically create staff member for the provider (for small businesses)
-          // This allows providers to immediately accept bookings without manual setup
-          // Check if staff member already exists (idempotent)
-          const existingStaff = await tx.staffMember.findUnique({
+          // Automatically create user provider entry for the provider (as owner)
+          const existingUserProvider = await tx.userProvider.findFirst({
             where: {
-              providerId_userId: {
-                providerId: newProvider.id,
-                userId: validated.userId,
-              },
+              providerId: newProvider.id,
+              userId: validated.userId,
             },
           })
 
-          if (!existingStaff) {
-            // Check if user is already staff for another provider (constraint check)
-            const existingStaffForOtherProvider = await tx.staffMember.findFirst({
-              where: {
+          if (!existingUserProvider) {
+            // Create UserProvider
+            const userProvider = await tx.userProvider.create({
+              data: {
+                providerId: newProvider.id,
                 userId: validated.userId,
-                providerId: { not: newProvider.id },
+                isOwner: true,
+                isActive: true,
               },
             })
 
-            if (existingStaffForOtherProvider) {
-              // User is already staff for another provider - skip auto-creation
-              // This is allowed (user can be provider for one business and staff for another)
-              // But we won't auto-create staff member in this case
-            } else {
-              // Create staff member for the provider
-              await tx.staffMember.create({
+            // Try to assign OWNER role if it exists (system role)
+            const ownerRole = await tx.role.findFirst({
+              where: { name: 'OWNER' },
+            })
+
+            if (ownerRole) {
+              await tx.userProviderRole.create({
                 data: {
-                  providerId: newProvider.id,
-                  userId: validated.userId,
-                  role: 'OWNER',
-                  isActive: true,
+                  userProviderId: userProvider.id,
+                  roleId: ownerRole.id,
                 },
               })
             }
@@ -248,7 +241,7 @@ export async function updateProvider(
 
     // Prepare update data
     const updateData: any = {}
-    
+
     if (validated.businessName) {
       updateData.businessName = validated.businessName
     }
@@ -269,8 +262,8 @@ export async function updateProvider(
     }
     // Handle businessImage - explicitly set to null if empty string, or keep the URL
     if (validated.businessImage !== undefined) {
-      updateData.businessImage = validated.businessImage && validated.businessImage.trim() !== '' 
-        ? validated.businessImage.trim() 
+      updateData.businessImage = validated.businessImage && validated.businessImage.trim() !== ''
+        ? validated.businessImage.trim()
         : null
     }
 

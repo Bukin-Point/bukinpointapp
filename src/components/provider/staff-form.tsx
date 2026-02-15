@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { StaffMember, Service } from '@prisma/client'
+import { UserProvider, Service } from '@prisma/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,13 +10,19 @@ import { createStaff, updateStaff } from '@/actions/staff'
 import { sendStaffInvitation } from '@/actions/staff-invitations'
 import { useToast } from '@/hooks/use-toast'
 import { Copy, Check } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
-type StaffWithRelations = StaffMember & {
+type UserProviderWithRelations = UserProvider & {
   user: {
     id: string
     name: string | null
     email: string
   }
+  roles: Array<{
+    role: {
+      name: string
+    }
+  }>
   services: Array<{
     service: {
       id: string
@@ -25,10 +31,15 @@ type StaffWithRelations = StaffMember & {
   }>
 }
 
+// Serialized Service type with price as number instead of Decimal
+type SerializedService = Omit<Service, 'price'> & {
+  price?: number
+}
+
 interface StaffFormProps {
   providerId: string
-  services: Service[]
-  staff?: StaffWithRelations
+  services: SerializedService[]
+  staff?: UserProviderWithRelations
   onSuccess: () => void
   onCancel: () => void
 }
@@ -40,19 +51,21 @@ export function StaffForm({ providerId, services, staff, onSuccess, onCancel }: 
     role: 'STAFF' as 'OWNER' | 'STAFF',
     serviceIds: [] as string[],
   })
-  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showInvitationModal, setShowInvitationModal] = useState(false)
+  const [error, setError] = useState('')
   const [invitationUrl, setInvitationUrl] = useState('')
   const [invitationEmail, setInvitationEmail] = useState('')
   const [isDevelopment, setIsDevelopment] = useState(false)
+  const [showInvitationModal, setShowInvitationModal] = useState(false)
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (staff) {
+      const roleName = staff.roles[0]?.role.name === 'OWNER' ? 'OWNER' : 'STAFF'
+
       setFormData({
         email: staff.user.email,
-        role: staff.role,
+        role: roleName,
         serviceIds: staff.services.map((s) => s.service.id),
       })
     }
@@ -94,7 +107,7 @@ export function StaffForm({ providerId, services, staff, onSuccess, onCancel }: 
         } else {
           // Show modal if email failed OR in development mode
           const shouldShowModal = !result.emailSent || result.isDevelopment
-          
+
           if (shouldShowModal) {
             // Show modal with invitation link
             setInvitationUrl(result.invitationUrl || '')
@@ -158,7 +171,7 @@ export function StaffForm({ providerId, services, staff, onSuccess, onCancel }: 
         document.body.appendChild(textArea)
         textArea.focus()
         textArea.select()
-        
+
         try {
           const successful = document.execCommand('copy')
           if (successful) {
@@ -303,7 +316,16 @@ export function StaffForm({ providerId, services, staff, onSuccess, onCancel }: 
             Cancel
           </Button>
           <Button type="submit" disabled={loading}>
-            {loading ? 'Saving...' : staff ? 'Update Staff' : 'Send Invitation'}
+            {loading ? (
+              <>
+                <Spinner className="mr-2 h-4 w-4" />
+                {staff ? 'Updating...' : 'Sending...'}
+              </>
+            ) : staff ? (
+              'Update Staff'
+            ) : (
+              'Send Invitation'
+            )}
           </Button>
         </CardFooter>
       </form>

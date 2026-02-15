@@ -20,25 +20,56 @@ export async function getSession() {
     return null
   }
 
-  // Find or create user in database linked to Clerk user
-  // Handle case where phone column doesn't exist yet in database
+  const userEmail = user.primaryEmailAddress?.emailAddress || ''
+  const isEmailVerified = user.emailAddresses[0]?.verification?.status === 'verified'
+  const userName = user.fullName || user.firstName || null
+  const userImage = user.imageUrl || null
+
   try {
-    const dbUser = await prisma.user.upsert({
+    // 1. Try to find user by Clerk ID first
+    let dbUser = await prisma.user.findUnique({
       where: { clerkUserId: userId },
-      create: {
-        clerkUserId: userId,
-        email: user.primaryEmailAddress?.emailAddress || '',
-        emailVerified: user.emailAddresses[0]?.verification?.status === 'verified',
-        name: user.fullName || user.firstName || null,
-        image: user.imageUrl || null,
-      },
-      update: {
-        email: user.primaryEmailAddress?.emailAddress || '',
-        emailVerified: user.emailAddresses[0]?.verification?.status === 'verified',
-        name: user.fullName || user.firstName || null,
-        image: user.imageUrl || null,
-      },
     })
+
+    // 2. If not found by Clerk ID, check by email
+    if (!dbUser && userEmail) {
+      dbUser = await prisma.user.findUnique({
+        where: { email: userEmail },
+      })
+
+      // If found by email, link the Clerk ID
+      if (dbUser) {
+        dbUser = await prisma.user.update({
+          where: { id: dbUser.id },
+          data: {
+            clerkUserId: userId,
+            emailVerified: isEmailVerified, // Update verification status from Clerk
+            name: dbUser.name || userName,  // Don't overwrite if existing name
+            image: dbUser.image || userImage,
+          },
+        })
+      }
+    }
+
+    // 3. If still not found, create new user (using upsert on clerkUserId for safety)
+    if (!dbUser) {
+      dbUser = await prisma.user.upsert({
+        where: { clerkUserId: userId },
+        create: {
+          clerkUserId: userId,
+          email: userEmail,
+          emailVerified: isEmailVerified,
+          name: userName,
+          image: userImage,
+        },
+        update: {
+          email: userEmail,
+          emailVerified: isEmailVerified,
+          name: userName,
+          image: userImage,
+        },
+      })
+    }
 
     return {
       user: {
@@ -49,22 +80,27 @@ export async function getSession() {
       },
     }
   } catch (error: any) {
-    // If phone column doesn't exist, try to find existing user or create with raw query
-    if (error?.message?.includes('column') || error?.code === 'P2021') {
-      // Try to find existing user first
-      const existingUser = await prisma.user.findUnique({
-        where: { clerkUserId: userId },
+    // Fallback for cases where migrations are out of sync (e.g. phone column issue)
+    if (error?.message?.includes('column') || error?.code === 'P2021' || error?.code === 'P2002') {
+      // Find current user state by email if clerkUserId search failed
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { clerkUserId: userId },
+            { email: userEmail }
+          ]
+        }
       })
 
       if (existingUser) {
-        // Update if needed (without phone field)
         const updatedUser = await prisma.user.update({
-          where: { clerkUserId: userId },
+          where: { id: existingUser.id },
           data: {
-            email: user.primaryEmailAddress?.emailAddress || '',
-            emailVerified: user.emailAddresses[0]?.verification?.status === 'verified',
-            name: user.fullName || user.firstName || null,
-            image: user.imageUrl || null,
+            clerkUserId: userId,
+            email: userEmail,
+            emailVerified: isEmailVerified,
+            name: existingUser.name || userName,
+            image: existingUser.image || userImage,
           },
         })
 
@@ -78,36 +114,25 @@ export async function getSession() {
         }
       }
 
-      // Create new user using raw query to avoid phone field
-      const result = await prisma.$executeRaw`
+      // Final fallback: Raw SQL with multi-conflict handling
+      // Note: PostgreSQL doesn't support multiple ON CONFLICT targets easily in a single statement without complex logic, 
+      // but we can target the most likely one (email) and rely on the app logic above for clerkUserId.
+      await prisma.$executeRaw`
         INSERT INTO "user" (id, "clerkUserId", email, "emailVerified", name, image, "createdAt", "updatedAt")
-        VALUES (gen_random_uuid()::text, ${userId}, ${user.primaryEmailAddress?.emailAddress || ''}, ${user.emailAddresses[0]?.verification?.status === 'verified'}, ${user.fullName || user.firstName || null}, ${user.imageUrl || null}, NOW(), NOW())
-        ON CONFLICT ("clerkUserId") DO UPDATE SET
-          email = EXCLUDED.email,
+        VALUES (gen_random_uuid()::text, ${userId}, ${userEmail}, ${isEmailVerified}, ${userName}, ${userImage}, NOW(), NOW())
+        ON CONFLICT (email) DO UPDATE SET
+          "clerkUserId" = EXCLUDED."clerkUserId",
           "emailVerified" = EXCLUDED."emailVerified",
-          name = EXCLUDED.name,
-          image = EXCLUDED.image,
-          "updatedAt" = NOW()
-        RETURNING id, email, name, image
+          updatedAt = NOW()
       `
 
-      // Fetch the created/updated user
       const newUser = await prisma.user.findUnique({
         where: { clerkUserId: userId },
       })
 
-      if (!newUser) {
-        throw new Error('Failed to create or find user')
-      }
+      if (!newUser) throw new Error('Failed to create/link user after raw fallback')
 
-      return {
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          name: newUser.name,
-          image: newUser.image,
-        },
-      }
+      return { user: { id: newUser.id, email: newUser.email, name: newUser.name, image: newUser.image } }
     }
     throw error
   }
@@ -153,13 +178,13 @@ export async function getUserType(session: { user: { id: string } } | null): Pro
     return 'provider'
   }
 
-  // Check if user is staff
-  const staffMember = await prisma.staffMember.findFirst({
+  // Check if user has UserProvider relationship (staff)
+  const userProvider = await prisma.userProvider.findFirst({
     where: { userId: session.user.id },
     select: { id: true },
   })
 
-  if (staffMember) {
+  if (userProvider) {
     return 'staff'
   }
 
@@ -176,4 +201,93 @@ export async function requireAuth() {
     throw new Error('Unauthorized')
   }
   return session
+}
+
+/**
+ * Check if a user is a super admin based on RBAC roles
+ */
+export async function isUserSuperAdmin(email: string | null | undefined) {
+  if (!email) return false
+
+  // 1. Fallback to env var for bootstrap/recovery
+  const envAdmins = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase())
+  if (envAdmins.includes(email.toLowerCase())) return true
+
+  // 2. Check Database via UserProvider
+  // We need to find if user has ANY UserProvider with SUPERADMIN role
+  // Since SUPERADMIN is ideally global or attached to a system provider, we search across all providers for now OR rely on specific logic.
+  // Ideally, we'd have a system provider. For now, let's check if they have the role in ANY provider context they belong to.
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      provider: { // If they own a provider
+        select: {
+          // We can't access userProvider via provider easily the other way without back-relation or finding UserProvider where userId = user.id
+        }
+      }
+    }
+  })
+
+  // Better query: Find UserProvider records for this user that have the SUPERADMIN role
+  const userProviders = await prisma.userProvider.findMany({
+    where: {
+      user: { email },
+      roles: {
+        some: {
+          role: { name: 'SUPERADMIN' }
+        }
+      }
+    }
+  })
+
+  return userProviders.length > 0
+}
+
+/**
+ * Check if a user has a specific permission within a provider context
+ */
+export async function hasPermission(userId: string, providerId: string, permissionName: string) {
+  const userProvider = await prisma.userProvider.findUnique({
+    where: {
+      userId_providerId: {
+        userId,
+        providerId
+      }
+    },
+    include: {
+      roles: {
+        include: {
+          role: {
+            include: {
+              rolePermissions: {
+                include: {
+                  permission: true
+                }
+              }
+            }
+          }
+        }
+      },
+      permissions: {
+        include: {
+          permission: true
+        }
+      }
+    }
+  })
+
+  if (!userProvider) return false
+
+  // 1. Check Roles
+  const rolePermissions = userProvider.roles.flatMap((upr: { role: { rolePermissions: { permission: { name: string } }[] } }) =>
+    upr.role.rolePermissions.map((rp: { permission: { name: string } }) => rp.permission.name)
+  )
+
+  // 2. Check Direct Permissions
+  const directPermissions = userProvider.permissions.map((upp: { permission: { name: string } }) => upp.permission.name)
+
+  const allPermissions = new Set([...rolePermissions, ...directPermissions])
+
+  return allPermissions.has(permissionName)
 }
