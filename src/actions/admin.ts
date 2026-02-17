@@ -2,81 +2,143 @@
 
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth-helpers-clerk'
-import { revalidatePath } from 'next/cache'
-import { syncUserRBAC } from './rbac'
+import { hasPermission } from '@/lib/auth-helpers-clerk'
+import { setGlobalPaymentGateway } from '@/lib/payment-config'
+import { PaymentGateway } from '@prisma/client'
 
-export async function promoteToSuperAdmin(secret: string) {
-    const session = await getSession()
-    if (!session) {
-        return { error: 'You must be signed in to perform this action' }
-    }
-
-    const ADMIN_SIGNUP_SECRET = process.env.ADMIN_SIGNUP_SECRET
-    if (!ADMIN_SIGNUP_SECRET || secret !== ADMIN_SIGNUP_SECRET) {
-        return { error: 'Invalid secret' }
-    }
-
+export async function getPlatformStats() {
     try {
-        // 1. Find the SUPERADMIN role
-        const superAdminRole = await prisma.role.findUnique({
-            where: { name: 'SUPERADMIN' }
-        })
+        const session = await getSession()
+        if (!session) return { success: false, error: 'Unauthorized' }
 
-        if (!superAdminRole) {
-            return { error: 'SUPERADMIN role not found. Please run seeding first.' }
-        }
+        // SECURITY: High-level check
+        const canManageSystem = await hasPermission('clsystemprovider000000', 'system:manage')
+        if (!canManageSystem) return { success: false, error: 'Forbidden' }
 
-        // 2. Find or create the System Provider
-        const systemProvider = await prisma.provider.findFirst({
-            where: { id: 'clsystemprovider000000' }
-        })
+        const [totalProviders, totalUsers, revenueData, totalTransactions] = await Promise.all([
+            prisma.provider.count({ where: { NOT: { id: 'clsystemprovider000000' } } }),
+            prisma.user.count(),
+            prisma.transaction.aggregate({
+                where: { status: 'PAID' },
+                _sum: { platformFee: true, netAmount: true, amount: true }
+            }),
+            prisma.transaction.count()
+        ])
 
-        if (!systemProvider) {
-            return { error: 'System Provider not found. Please run seeding first.' }
-        }
-
-        // 3. Create UserProvider link with SUPERADMIN role
-        const userProvider = await prisma.userProvider.upsert({
-            where: {
-                userId_providerId: {
-                    userId: session.user.id,
-                    providerId: systemProvider.id
+        // Get recent transactions across platform
+        const recentTransactions = await prisma.transaction.findMany({
+            take: 10,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                booking: {
+                    include: {
+                        provider: true,
+                        service: true
+                    }
                 }
-            },
-            update: {
-                isActive: true,
-                isOwner: true // Admins are effectively owners of the system provider
-            },
-            create: {
-                userId: session.user.id,
-                providerId: systemProvider.id,
-                isActive: true,
-                isOwner: true
             }
         })
 
-        // 4. Assign the role
-        await prisma.userProviderRole.upsert({
-            where: {
-                userProviderId_roleId: {
-                    userProviderId: userProvider.id,
-                    roleId: superAdminRole.id
-                }
+        return {
+            success: true,
+            stats: {
+                providers: totalProviders,
+                users: totalUsers,
+                platformRevenue: Number(revenueData._sum.platformFee || 0),
+                totalVolume: Number(revenueData._sum.amount || 0),
+                transactions: totalTransactions
             },
-            update: {},
-            create: {
-                userProviderId: userProvider.id,
-                roleId: superAdminRole.id
-            }
+            recentTransactions
+        }
+    } catch (error) {
+        console.error('[Admin] Error fetching platform stats:', error)
+        return { success: false, error: 'Internal Server Error' }
+    }
+}
+
+export async function getAllProviders() {
+    try {
+        const session = await getSession()
+        if (!session) return { success: false, error: 'Unauthorized' }
+        const canManageSystem = await hasPermission('clsystemprovider000000', 'system:manage')
+        if (!canManageSystem) return { success: false, error: 'Forbidden' }
+
+        const providers = await prisma.provider.findMany({
+            where: { NOT: { id: 'clsystemprovider000000' } },
+            include: {
+                user: { select: { email: true } },
+                _count: { select: { services: true, bookings: true } }
+            },
+            orderBy: { createdAt: 'desc' }
         })
 
-        // 5. Sync permissions to Clerk token
-        await syncUserRBAC(session.user.id)
+        return { success: true, providers }
+    } catch (error) {
+        console.error('[Admin] Error fetching providers:', error)
+        return { success: false, error: 'Failed to fetch providers' }
+    }
+}
 
-        revalidatePath('/')
+export async function getAllPlatformUsers() {
+    try {
+        const session = await getSession()
+        if (!session) return { success: false, error: 'Unauthorized' }
+        const canManageSystem = await hasPermission('clsystemprovider000000', 'system:manage')
+        if (!canManageSystem) return { success: false, error: 'Forbidden' }
+
+        const users = await prisma.user.findMany({
+            include: {
+                _count: { select: { bookings: true, userProviders: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 100 // Limit for now
+        })
+
+        return { success: true, users }
+    } catch (error) {
+        console.error('[Admin] Error fetching users:', error)
+        return { success: false, error: 'Failed to fetch users' }
+    }
+}
+
+export async function getAllTransactions() {
+    try {
+        const session = await getSession()
+        if (!session) return { success: false, error: 'Unauthorized' }
+        const canManageSystem = await hasPermission('clsystemprovider000000', 'system:manage')
+        if (!canManageSystem) return { success: false, error: 'Forbidden' }
+
+        const transactions = await prisma.transaction.findMany({
+            include: {
+                booking: {
+                    include: {
+                        provider: { select: { businessName: true } },
+                        service: { select: { name: true } }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 200 // Limit for now
+        })
+
+        return { success: true, transactions }
+    } catch (error) {
+        console.error('[Admin] Error fetching transactions:', error)
+        return { success: false, error: 'Failed to fetch transactions' }
+    }
+}
+
+export async function updateGlobalGateway(gateway: PaymentGateway) {
+    try {
+        const session = await getSession()
+        if (!session) return { success: false, error: 'Unauthorized' }
+        const canManageSystem = await hasPermission('clsystemprovider000000', 'system:manage')
+        if (!canManageSystem) return { success: false, error: 'Forbidden' }
+
+        await setGlobalPaymentGateway(gateway)
         return { success: true }
-    } catch (error: any) {
-        console.error('Promotion error:', error)
-        return { error: error.message || 'An unexpected error occurred' }
+    } catch (error) {
+        console.error('[Admin] Error updating global gateway:', error)
+        return { success: false, error: 'Failed to update gateway' }
     }
 }
