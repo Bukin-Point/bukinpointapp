@@ -5,7 +5,7 @@ import { getSession, isUserSuperAdmin } from '@/lib/auth-helpers-clerk'
 
 export async function GET(request: Request) {
   const session = await getSession()
-  const isSuperAdmin = await isUserSuperAdmin(session?.user?.email)
+  const isSuperAdmin = await isUserSuperAdmin()
 
   if (!session || !isSuperAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

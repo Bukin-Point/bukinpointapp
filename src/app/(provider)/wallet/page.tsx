@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { headers } from 'next/headers'
-import { getProviderAccess, canManageStaff } from '@/lib/staff-helpers'
+import { getProviderAccess, canManageStaff, canViewWallet } from '@/lib/staff-helpers'
 import { prisma } from '@/lib/db'
 import { WalletView } from '@/components/provider/wallet-view'
 import { sanitizeProviderId } from '@/lib/auth-utils'
@@ -21,7 +21,7 @@ export default async function WalletPage({
   // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
   const headersList = await headers()
   const subdomainProviderId = headersList.get('x-provider-id')
-  
+
   const params = await searchParams
   // Prioritize subdomain provider ID over URL parameter for security
   const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
@@ -41,8 +41,8 @@ export default async function WalletPage({
     redirect('/onboarding')
   }
 
-  // Only providers and OWNER role staff can access wallet
-  if (!canManageStaff(accessContext)) {
+  // Only providers and users with wallet:read permission can access wallet
+  if (!canViewWallet(accessContext)) {
     redirect('/dashboard')
   }
 

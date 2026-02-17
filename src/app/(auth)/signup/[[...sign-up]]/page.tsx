@@ -10,32 +10,15 @@ import { cn } from '@/lib/utils'
 function SignUpContent() {
   const searchParams = useSearchParams()
 
-  // Get user type from URL, default to 'provider'
+  // Get user type from URL once, don't rewrite it
   const typeParam = searchParams.get('type')
-  const [userType, setUserType] = useState<'provider' | 'customer'>(
-    (typeParam === 'customer' ? 'customer' : 'provider') as 'provider' | 'customer'
-  )
-
-  // Update URL when user type changes
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString())
-    if (userType === 'provider') {
-      params.delete('type')
-    } else {
-      params.set('type', 'customer')
-    }
-    const newUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
-    window.history.replaceState({}, '', newUrl)
-  }, [userType, searchParams])
+  const userType = typeParam === 'customer' ? 'customer' : 'provider'
 
   // Determine redirect URL based on user type
-  // Use dedicated redirect handlers that preserve flow context through email verification
   const afterSignUpUrl =
     userType === 'customer'
       ? '/auth/redirect-customer?flow=customer-signup'
       : '/auth/redirect-provider?flow=provider-signup'
-  const forceRedirectUrl = afterSignUpUrl
-  const fallbackRedirectUrl = afterSignUpUrl
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface px-4 py-8">
@@ -55,24 +38,24 @@ function SignUpContent() {
 
         {/* User Type Toggle */}
         <div className="flex items-center justify-center gap-2 rounded-lg border bg-background p-1">
-          <Button
-            type="button"
-            variant={userType === 'provider' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setUserType('provider')}
-            className={cn('flex-1 transition-all', userType === 'provider' && 'shadow-sm')}
+          <Link
+            href="/signup"
+            className={cn(
+              'flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-all',
+              userType === 'provider' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-text-secondary hover:bg-surface'
+            )}
           >
             Provider
-          </Button>
-          <Button
-            type="button"
-            variant={userType === 'customer' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setUserType('customer')}
-            className={cn('flex-1 transition-all', userType === 'customer' && 'shadow-sm')}
+          </Link>
+          <Link
+            href="/signup?type=customer"
+            className={cn(
+              'flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-all',
+              userType === 'customer' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-text-secondary hover:bg-surface'
+            )}
           >
             Customer
-          </Button>
+          </Link>
         </div>
 
         {/* Sign Up Header */}
@@ -87,22 +70,19 @@ function SignUpContent() {
           </p>
         </div>
 
-        {/* Clerk Sign Up Component */}
+        {/* Clerk Sign Up component */}
         <SignUp
           routing="path"
           path="/signup"
           afterSignUpUrl={afterSignUpUrl}
-          forceRedirectUrl={forceRedirectUrl}
-          fallbackRedirectUrl={fallbackRedirectUrl}
+          forceRedirectUrl={afterSignUpUrl}
+          fallbackRedirectUrl={afterSignUpUrl}
           appearance={{
             elements: {
               rootBox: 'mx-auto',
               card: 'shadow-none',
               footer: { display: 'none' }, // Hide the footer with sign-in link
-              captcha: {},
-              alertText: {
-                fontSize: '0.875rem',
-              },
+              alertText: { fontSize: '0.875rem' },
             },
           }}
         />

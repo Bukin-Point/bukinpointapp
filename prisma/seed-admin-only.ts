@@ -56,7 +56,33 @@ async function main() {
     await prisma.permission.deleteMany()
     await prisma.role.deleteMany()
 
-    // 2. Create or Update System Provider
+    // 2. Create or Find the system user (needed for Provider foreign key)
+    console.log(`👤 Ensuring System User (${ADMIN_EMAIL}) exists...`)
+    let systemUser = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } })
+
+    if (!systemUser) {
+        systemUser = await prisma.user.create({
+            data: {
+                id: 'clsystemuser000000',
+                clerkUserId: 'clsystemuser000000',
+                email: ADMIN_EMAIL,
+                name: ADMIN_NAME,
+            }
+        })
+    } else {
+        systemUser = await prisma.user.update({
+            where: { id: systemUser.id },
+            data: {
+                name: ADMIN_NAME,
+                // Ensure clerkUserId is set if it was missing
+                clerkUserId: systemUser.clerkUserId || 'clsystemuser000000'
+            }
+        })
+    }
+
+    const SYSTEM_USER_ID = systemUser.id
+
+    // 3. Create or Update System Provider
     console.log('🏢 Ensuring System Provider exists...')
     const systemProvider = await prisma.provider.upsert({
         where: { id: 'clsystemprovider000000' },
@@ -64,6 +90,8 @@ async function main() {
             businessName: 'BukinPoint System',
             status: 'ACTIVE',
             subdomain: 'admin',
+            email: ADMIN_EMAIL,
+            userId: SYSTEM_USER_ID,
         },
         create: {
             id: 'clsystemprovider000000',
@@ -72,21 +100,9 @@ async function main() {
             subdomain: 'admin',
             industry: 'Technology',
             phone: '+2340000000000',
-            email: 'system@bukinpoint.com',
-            userId: 'clsystemuser000000', // Placeholder or a dedicated system user ID
+            email: ADMIN_EMAIL,
+            userId: SYSTEM_USER_ID,
         }
-    })
-
-    // Create a placeholder system user if it doesn't exist
-    await prisma.user.upsert({
-        where: { clerkUserId: 'clsystemuser000000' },
-        create: {
-            id: 'clsystemuser000000',
-            clerkUserId: 'clsystemuser000000',
-            email: 'system@bukinpoint.com',
-            name: 'System User',
-        },
-        update: {}
     })
 
     // 3. Create Roles
@@ -106,12 +122,30 @@ async function main() {
     // 4. Create permissions
     console.log('🔑 Creating Permissions...')
     const permissionsList = [
-        { name: 'manage:settings', desc: 'Manage system/provider settings' },
-        { name: 'manage:users', desc: 'Manage staff and invitations' },
-        { name: 'booking:read', desc: 'View bookings' },
-        { name: 'booking:create', desc: 'Create new bookings' },
-        { name: 'booking:update', desc: 'Modify existing bookings' },
-        { name: 'system:manage', desc: 'Full system administrative access' }
+        // Dashboard & Settings
+        { name: 'view:dashboard', desc: 'Can view the main dashboard' },
+        { name: 'manage:settings', desc: 'Can manage business and payment settings' },
+
+        // Bookings
+        { name: 'booking:read', desc: 'Can view all bookings' },
+        { name: 'booking:create', desc: 'Can create new bookings' },
+        { name: 'booking:update', desc: 'Can modify existing bookings' },
+        { name: 'booking:delete', desc: 'Can cancel or remove bookings' },
+
+        // Services
+        { name: 'service:read', desc: 'Can view services' },
+        { name: 'service:write', desc: 'Can create or edit services' },
+
+        // Staff & RBAC
+        { name: 'manage:users', desc: 'Can invite and manage staff' },
+        { name: 'manage:roles', desc: 'Can manage roles and permissions' },
+
+        // Finance
+        { name: 'wallet:read', desc: 'Can view wallet balance and transactions' },
+        { name: 'wallet:payout', desc: 'Can initiate payouts' },
+
+        // System
+        { name: 'system:manage', desc: 'Full platform administrative access' }
     ]
 
     for (const p of permissionsList) {
@@ -130,8 +164,9 @@ async function main() {
                 data: { roleId: ownerRole.id, permissionId: permission.id }
             })
 
-            // Staff gets booking permissions
-            if (p.name.startsWith('booking:')) {
+            // Staff gets a subset
+            const staffPerms = ['view:dashboard', 'booking:read', 'booking:create', 'booking:update', 'service:read']
+            if (staffPerms.includes(p.name)) {
                 await prisma.rolePermission.create({
                     data: { roleId: staffRole.id, permissionId: permission.id }
                 })

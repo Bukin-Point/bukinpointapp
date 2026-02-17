@@ -182,17 +182,7 @@ export async function requireAuth() {
  * Check if a user is a super admin based on RBAC roles
  */
 export async function isUserSuperAdmin(email: string | null | undefined) {
-  if (!email) return false
-
-  // 1. Fallback to env var for bootstrap/recovery
-  const envAdmins = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase())
-  if (envAdmins.includes(email.toLowerCase())) return true
-
-  // 2. Check Database via UserProvider
-  // We need to find if user has ANY UserProvider with SUPERADMIN role
-  // Since SUPERADMIN is ideally global or attached to a system provider, we search across all providers for now OR rely on specific logic.
-  // Ideally, we'd have a system provider. For now, let's check if they have the role in ANY provider context they belong to.
-
+  if (!email) return false;
   const user = await prisma.user.findUnique({
     where: { email },
     select: {

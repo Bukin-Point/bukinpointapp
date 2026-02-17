@@ -8,7 +8,7 @@ import {
   setGlobalPaymentGateway as setGlobalGatewayInDb,
 } from '@/lib/payment-config'
 import { PaymentGateway } from '@prisma/client'
-import { isUserSuperAdmin } from '@/lib/auth-helpers-clerk'
+import { isUserSuperAdmin, hasPermission } from '@/lib/auth-helpers-clerk'
 
 /**
  * Update the payment gateway override for a provider. Caller must have access to the provider (owner or manage staff).
@@ -20,8 +20,7 @@ export async function updateProviderPaymentGatewayAction(
   const session = await getSession()
   if (!session) return { error: 'Unauthorized' }
 
-  const accessContext = await getProviderAccess(session.user.id, providerId)
-  if (!accessContext || !canManageStaff(accessContext)) {
+  if (!(await hasPermission(providerId, 'manage:settings'))) {
     return { error: 'You do not have permission to change this setting.' }
   }
 
@@ -38,7 +37,7 @@ export async function updateGlobalPaymentGatewayAction(
   gateway: PaymentGateway
 ): Promise<{ error?: string }> {
   const session = await getSession()
-  const isSuperAdmin = await isUserSuperAdmin(session?.user?.email)
+  const isSuperAdmin = await isUserSuperAdmin()
   if (!session || !isSuperAdmin) return { error: 'Unauthorized' }
 
   await setGlobalGatewayInDb(gateway)

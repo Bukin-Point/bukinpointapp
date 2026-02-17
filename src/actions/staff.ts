@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
+import { hasPermission } from '@/lib/auth-helpers-clerk'
 
 const createStaffSchema = z.object({
   providerId: z.string(),
@@ -19,6 +20,11 @@ const updateStaffSchema = z.object({
 export async function createStaff(data: z.infer<typeof createStaffSchema>) {
   try {
     const validated = createStaffSchema.parse(data)
+
+    // Authorization check
+    if (!(await hasPermission(validated.providerId, 'manage:users'))) {
+      return { error: 'Unauthorized: You do not have permission to manage staff.' }
+    }
 
     // Find or create user by email
     let user = await prisma.user.findUnique({
@@ -116,6 +122,16 @@ export async function updateStaff(
   try {
     const validated = updateStaffSchema.parse(data)
 
+    // Authorization check - First, get the providerId for this userProvider record
+    const userProvider = await prisma.userProvider.findUnique({
+      where: { id },
+      select: { providerId: true }
+    })
+
+    if (!userProvider || !(await hasPermission(userProvider.providerId, 'manage:users'))) {
+      return { error: 'Unauthorized: You do not have permission to manage staff.' }
+    }
+
     await prisma.$transaction(async (tx) => {
       // Update role if changed
       if (validated.role !== undefined) {
@@ -184,6 +200,15 @@ export async function updateStaff(
 
 export async function deleteStaff(id: string) {
   try {
+    const userProvider = await prisma.userProvider.findUnique({
+      where: { id },
+      select: { providerId: true }
+    })
+
+    if (!userProvider || !(await hasPermission(userProvider.providerId, 'manage:users'))) {
+      return { error: 'Unauthorized: You do not have permission to manage staff.' }
+    }
+
     await prisma.userProvider.delete({
       where: { id },
     })
@@ -198,6 +223,15 @@ export async function deleteStaff(id: string) {
 
 export async function toggleStaffStatus(id: string, isActive: boolean) {
   try {
+    const userProvider = await prisma.userProvider.findUnique({
+      where: { id },
+      select: { providerId: true }
+    })
+
+    if (!userProvider || !(await hasPermission(userProvider.providerId, 'manage:users'))) {
+      return { error: 'Unauthorized: You do not have permission to manage staff.' }
+    }
+
     await prisma.userProvider.update({
       where: { id },
       data: { isActive },

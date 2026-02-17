@@ -43,7 +43,11 @@ export default async function PaymentsSettingsPage({
     redirect('/onboarding')
   }
 
-  if (!canManageStaff(accessContext)) {
+  // Use granular permission check
+  const { hasPermission, isUserSuperAdmin } = await import('@/lib/auth-helpers-clerk')
+  const canManageSettings = await hasPermission(accessContext.provider.id, 'manage:settings')
+
+  if (!canManageSettings) {
     redirect('/dashboard')
   }
 
@@ -54,7 +58,7 @@ export default async function PaymentsSettingsPage({
     getProviderPaymentGatewayOverride(providerId),
   ])
 
-  const isAdmin = await isUserSuperAdmin(session.user.email)
+  const isAdmin = await isUserSuperAdmin()
 
   return (
     <div className="space-y-6">

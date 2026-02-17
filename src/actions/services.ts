@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
 import { deleteImage } from '@/lib/upload'
+import { hasPermission } from '@/lib/auth-helpers-clerk'
 
 const serviceSchema = z.object({
   name: z.string().min(1, 'Service name is required'),
@@ -25,6 +26,11 @@ const updateServiceSchema = serviceSchema.partial().extend({
 export async function createService(data: z.infer<typeof createServiceSchema>) {
   try {
     const validated = createServiceSchema.parse(data)
+
+    // Authorization check
+    if (!(await hasPermission(validated.providerId, 'service:write'))) {
+      return { error: 'Unauthorized: You do not have permission to manage services.' }
+    }
 
     // Verify provider exists
     const provider = await prisma.provider.findUnique({
@@ -92,6 +98,16 @@ export async function updateService(
   try {
     const validated = updateServiceSchema.parse({ ...data, id })
 
+    // Authorization check - Get providerId for this service
+    const serviceRecord = await prisma.service.findUnique({
+      where: { id },
+      select: { providerId: true }
+    })
+
+    if (!serviceRecord || !(await hasPermission(serviceRecord.providerId, 'service:write'))) {
+      return { error: 'Unauthorized: You do not have permission to manage services.' }
+    }
+
     // Get current service to check for old image
     const currentService = await prisma.service.findUnique({
       where: { id },
@@ -149,8 +165,12 @@ export async function deleteService(id: string) {
     // Get service to check for image before deleting
     const service = await prisma.service.findUnique({
       where: { id },
-      select: { image: true },
+      select: { image: true, providerId: true },
     })
+
+    if (!service || !(await hasPermission(service.providerId, 'service:write'))) {
+      return { error: 'Unauthorized: You do not have permission to manage services.' }
+    }
 
     // Delete the service
     await prisma.service.delete({

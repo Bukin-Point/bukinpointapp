@@ -17,6 +17,7 @@ export interface UserProviderContext {
     userId: string
     businessImage: string | null
   }
+  permissions: string[] // Flattened permissions from token/DB
 }
 
 export interface ProviderContext {
@@ -27,87 +28,90 @@ export interface ProviderContext {
     userId: string
     businessImage: string | null
   }
+  permissions: string[] // Providers have full permissions
 }
 
 export type AccessContext = UserProviderContext | ProviderContext
 
 /**
+ * Check if user has a specific permission
+ */
+export function hasPermission(context: AccessContext | null, permission: string): boolean {
+  if (!context) return false
+
+  // System-wide manage permission always wins
+  if (context.permissions.includes('system:manage')) return true
+
+  return context.permissions.includes(permission)
+}
+
+/**
  * Check if user has permission to access a route
  */
 export function canAccessRoute(context: AccessContext | null, route: string): boolean {
-  if (!context) {
-    return false
+  if (!context) return false
+
+  // Settings & Wallet require specific permissions
+  if (route.startsWith('/settings/payments') || route.startsWith('/settings/gateway')) {
+    return hasPermission(context, 'manage:settings')
   }
 
-  // Providers have full access (ProviderContext)
-  if (!('userProvider' in context)) {
-    return true
+  if (route.startsWith('/settings')) {
+    return hasPermission(context, 'manage:settings') || hasPermission(context, 'manage:users')
   }
 
-  // UserProvider (RBAC) - check roles
-  const { userProvider } = context
-  // Owner or OWNER role has full access
-  const isOwner = userProvider.isOwner || userProvider.roles.some((r) => r.role.name === 'OWNER')
-
-  if (isOwner) {
-    return true
+  if (route.startsWith('/wallet')) {
+    return hasPermission(context, 'wallet:read')
   }
 
-  // STAFF role has limited access
-  // TODO: Move this to a more robust permission check like `can(context, 'view:settings')`
-  const restrictedRoutes = ['/wallet', '/settings', '/staff']
-  return !restrictedRoutes.some(restricted => route.startsWith(restricted))
+  if (route.startsWith('/staff')) {
+    return hasPermission(context, 'manage:users')
+  }
+
+  if (route.startsWith('/services')) {
+    return hasPermission(context, 'service:read') || hasPermission(context, 'service:write')
+  }
+
+  // Dashboard and Bookings check
+  if (route.startsWith('/dashboard')) return hasPermission(context, 'view:dashboard')
+  if (route.startsWith('/bookings')) return hasPermission(context, 'booking:read')
+
+  return true
 }
 
 /**
  * Check if user can manage staff
  */
 export function canManageStaff(context: AccessContext | null): boolean {
-  if (!context) {
-    return false
-  }
-
-  // Providers can manage staff
-  if (!('userProvider' in context)) {
-    return true
-  }
-
-  // UserProvider - check for owner or OWNER role
-  return context.userProvider.isOwner || context.userProvider.roles.some((r) => r.role.name === 'OWNER')
+  return hasPermission(context, 'manage:users')
 }
 
 /**
  * Check if user can edit services
  */
 export function canEditServices(context: AccessContext | null): boolean {
-  if (!context) {
-    return false
-  }
-
-  // Providers can edit services
-  if (!('userProvider' in context)) {
-    return true
-  }
-
-  // UserProvider - check for owner or OWNER role
-  return context.userProvider.isOwner || context.userProvider.roles.some((r) => r.role.name === 'OWNER')
+  return hasPermission(context, 'service:write')
 }
 
 /**
  * Check if user can view all bookings or only their own
  */
 export function canViewAllBookings(context: AccessContext | null): boolean {
-  if (!context) {
-    return false
-  }
+  return hasPermission(context, 'booking:read')
+}
 
-  // Providers can view all bookings
-  if (!('userProvider' in context)) {
-    return true
-  }
+/**
+ * Check if user can view wallet and finance details
+ */
+export function canViewWallet(context: AccessContext | null): boolean {
+  return hasPermission(context, 'wallet:read')
+}
 
-  // UserProvider - check for owner or OWNER role
-  return context.userProvider.isOwner || context.userProvider.roles.some((r) => r.role.name === 'OWNER')
+/**
+ * Check if user can manage roles and permissions
+ */
+export function canManageRoles(context: AccessContext | null): boolean {
+  return hasPermission(context, 'manage:roles')
 }
 
 /**

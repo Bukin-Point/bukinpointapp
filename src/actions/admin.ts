@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/db'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { revalidatePath } from 'next/cache'
+import { syncUserRBAC } from './rbac'
 
 export async function promoteToSuperAdmin(secret: string) {
     const session = await getSession()
@@ -68,6 +69,9 @@ export async function promoteToSuperAdmin(secret: string) {
                 roleId: superAdminRole.id
             }
         })
+
+        // 5. Sync permissions to Clerk token
+        await syncUserRBAC(session.user.id)
 
         revalidatePath('/')
         return { success: true }

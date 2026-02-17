@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
 import { generateSubdomain, generateUniqueSubdomain } from '@/lib/subdomain-utils'
+import { hasPermission } from '@/lib/auth-helpers-clerk'
 
 const createProviderSchema = z.object({
   userId: z.string(),
@@ -229,6 +230,11 @@ export async function updateProvider(
   try {
     // Validate input
     const validated = updateProviderSchema.parse(data)
+
+    // Authorization check
+    if (!(await hasPermission(providerId, 'manage:settings'))) {
+      return { error: 'Unauthorized: You do not have permission to manage business settings.' }
+    }
 
     // Check if provider exists
     const existing = await prisma.provider.findUnique({

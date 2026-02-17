@@ -1,10 +1,19 @@
 import { SettingsNav } from '@/components/provider/settings-nav'
+import { getSession } from '@/lib/auth-helpers-clerk'
+import { getProviderAccess } from '@/lib/staff-helpers'
+import { redirect } from 'next/navigation'
 
-export default function SettingsLayout({
+export default async function SettingsLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const session = await getSession()
+  if (!session) redirect('/signin')
+
+  const accessContext = await getProviderAccess(session.user.id)
+  if (!accessContext) redirect('/dashboard')
+
   return (
     <div className="space-y-6">
       <div>
@@ -17,7 +26,7 @@ export default function SettingsLayout({
       <div className="grid gap-6 lg:grid-cols-4">
         {/* Settings Navigation */}
         <div className="lg:col-span-1">
-          <SettingsNav />
+          <SettingsNav accessContext={accessContext} />
         </div>
 
         {/* Settings Content */}

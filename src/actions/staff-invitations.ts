@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { z } from 'zod'
 import { randomBytes } from 'crypto'
 import { sendStaffInvitationEmail } from '@/lib/email'
+import { hasPermission } from '@/lib/auth-helpers-clerk'
 
 const sendInvitationSchema = z.object({
   providerId: z.string(),
@@ -23,6 +24,11 @@ const acceptInvitationSchema = z.object({
 export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSchema>) {
   try {
     const validated = sendInvitationSchema.parse(data)
+
+    // Authorization check
+    if (!(await hasPermission(validated.providerId, 'manage:users'))) {
+      return { error: 'Unauthorized: You do not have permission to invite staff.' }
+    }
 
     // Check if provider is trying to invite themselves
     const provider = await prisma.provider.findUnique({
@@ -361,6 +367,11 @@ export async function createStaffFromInvitation(
 
 export async function getPendingInvitations(providerId: string) {
   try {
+    // Authorization check
+    if (!(await hasPermission(providerId, 'manage:users'))) {
+      return { error: 'Unauthorized: You do not have permission to view invitations.', invitations: [] }
+    }
+
     const invitations = await prisma.staffInvitation.findMany({
       where: {
         providerId,
@@ -383,6 +394,15 @@ export async function getPendingInvitations(providerId: string) {
 
 export async function cancelInvitation(invitationId: string) {
   try {
+    const invitation = await prisma.staffInvitation.findUnique({
+      where: { id: invitationId },
+      select: { providerId: true }
+    })
+
+    if (!invitation || !(await hasPermission(invitation.providerId, 'manage:users'))) {
+      return { error: 'Unauthorized: You do not have permission to cancel invitations.' }
+    }
+
     await prisma.staffInvitation.delete({
       where: { id: invitationId },
     })

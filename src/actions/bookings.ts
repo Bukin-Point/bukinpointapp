@@ -12,6 +12,7 @@ import {
 import { canViewAllBookings, getProviderAccess } from '@/lib/staff-helpers'
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { processPayment } from '@/actions/payments'
+import { hasPermission } from '@/lib/auth-helpers-clerk'
 
 // Define BookingStatus type from Prisma namespace (available even if client not generated)
 type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW'
@@ -26,13 +27,18 @@ export async function updateBookingStatus(bookingId: string, status: BookingStat
       where: { id: bookingId },
       include: {
         service: { select: { name: true, price: true } },
-        provider: { select: { businessName: true } },
-        userProvider: { include: { user: { select: { name: true } } } },
+        provider: { select: { businessName: true, id: true } },
+        userProvider: { include: { user: { select: { name: true, id: true } } } },
       },
     })
 
     if (!booking) {
       return { error: 'Booking not found' }
+    }
+
+    // Authorization check
+    if (!(await hasPermission(booking.provider.id, 'booking:update'))) {
+      return { error: 'Unauthorized: You do not have permission to update booking status.' }
     }
 
     const previousStatus = booking.status
@@ -217,6 +223,11 @@ export async function createManualBooking(data: z.infer<typeof createManualBooki
   try {
     const validated = createManualBookingSchema.parse(data)
 
+    // Authorization check
+    if (!(await hasPermission(validated.providerId, 'booking:create'))) {
+      return { error: 'Unauthorized: You do not have permission to create bookings.' }
+    }
+
     // Prevent booking past times (even in override mode)
     const now = new Date()
     const bookingDateTime = new Date(validated.bookingDate)
@@ -397,6 +408,13 @@ export async function cancelBooking(bookingId: string, initiatedBy: 'customer' |
       return { error: 'Booking not found' }
     }
 
+    // Authorization check (only if initiated by provider)
+    if (initiatedBy === 'provider') {
+      if (!(await hasPermission(booking.provider.id, 'booking:delete'))) {
+        return { error: 'Unauthorized: You do not have permission to cancel bookings.' }
+      }
+    }
+
     if (booking.status === 'CANCELLED') {
       return { error: 'Booking is already cancelled' }
     }
@@ -496,6 +514,13 @@ export async function rescheduleBooking(data: z.infer<typeof rescheduleBookingSc
 
     if (!booking) {
       return { error: 'Booking not found' }
+    }
+
+    // Authorization check (only if initiated by provider)
+    if (validated.initiatedBy === 'provider') {
+      if (!(await hasPermission(booking.provider.id, 'booking:update'))) {
+        return { error: 'Unauthorized: You do not have permission to reschedule bookings.' }
+      }
     }
 
     if (booking.status === 'CANCELLED' || booking.status === 'COMPLETED') {

@@ -19,9 +19,11 @@ export default async function CustomerRedirectPage({
   const session = await getSession()
 
   if (!session) {
-    // If no session on server, let client-side handle it (session might not be available yet)
+    console.log('[Redirect-Customer] No session on server, delegating to client-side AuthRedirectClient')
     return <AuthRedirectClient />
   }
+
+  console.log(`[Redirect-Customer] Processing flow: ${flow || 'default'}, user: ${session.user.id}`)
 
   // Check Clerk metadata first for account type
   let accountTypeFromMetadata: 'provider' | 'staff' | 'customer' | null = null
@@ -29,35 +31,42 @@ export default async function CustomerRedirectPage({
     const clerkUser = await currentUser()
     if (clerkUser?.publicMetadata?.accountType) {
       accountTypeFromMetadata = clerkUser.publicMetadata.accountType as 'provider' | 'staff' | 'customer'
+      console.log(`[Redirect-Customer] Account type from metadata: ${accountTypeFromMetadata}`)
     }
   } catch (error) {
-    console.warn('Error reading Clerk metadata:', error)
+    console.warn('[Redirect-Customer] Error reading Clerk metadata:', error)
   }
 
   // Handle customer signup flow
   if (flow === 'customer-signup') {
+    console.log('[Redirect-Customer] Handling customer-signup flow')
     redirect('/customer/dashboard?flow=customer-signup')
   }
 
   // If metadata says provider or staff but we're in customer redirect, redirect to provider dashboard
   if (accountTypeFromMetadata === 'provider' || accountTypeFromMetadata === 'staff') {
+    console.log('[Redirect-Customer] Overriding to provider dashboard based on metadata')
     redirect('/dashboard')
   }
 
   // Get user type from database (fallback if metadata not available)
   const userId = session.user.id
   let userType: 'provider' | 'staff' | 'customer' | null = null
-  
+
   try {
+    console.log(`[Redirect-Customer] Fetching user type for: ${userId}`)
     userType = await getUserType(userId)
   } catch (error) {
-    console.error('Error getting user type:', error)
+    console.error('[Redirect-Customer] Error getting user type:', error)
     // Default to customer if error
     userType = 'customer'
   }
 
+  console.log(`[Redirect-Customer] User type determined: ${userType}`)
+
   // If database says provider or staff, redirect to provider dashboard
   if (userType === 'provider' || userType === 'staff') {
+    console.log('[Redirect-Customer] Redirecting to provider dashboard')
     redirect('/dashboard')
   }
 
@@ -66,6 +75,7 @@ export default async function CustomerRedirectPage({
     try {
       const clerkUser = await currentUser()
       if (clerkUser?.id) {
+        console.log(`[Redirect-Customer] Updating Clerk metadata for ${clerkUser.id} to type: customer`)
         const client = await clerkClient()
         await client.users.updateUserMetadata(clerkUser.id, {
           publicMetadata: {
@@ -75,11 +85,12 @@ export default async function CustomerRedirectPage({
         })
       }
     } catch (error) {
-      console.warn('Error updating Clerk metadata:', error)
+      console.warn('[Redirect-Customer] Error updating Clerk metadata:', error)
       // Don't fail redirect if metadata update fails
     }
   }
 
   // Customer confirmed - redirect to customer dashboard
+  console.log('[Redirect-Customer] Success, redirecting to customer dashboard')
   redirect('/customer/dashboard')
 }

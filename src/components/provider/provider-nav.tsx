@@ -18,7 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useClerk } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-import { AccessContext, canManageStaff, isStaff } from '@/lib/staff-helpers-client'
+import { AccessContext, hasPermission, isStaff } from '@/lib/staff-helpers-client'
 import { ProviderSelector } from './provider-selector'
 import { useProviderContext } from '@/store/provider-context'
 
@@ -41,11 +41,10 @@ function NavLink({
     <Link
       href={finalHref}
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-md px-3 py-2 text-body-sm transition-colors ${
-        isActive
-          ? 'bg-primary text-primary-foreground'
-          : 'text-text-secondary hover:bg-accent hover:text-accent-foreground'
-      }`}
+      className={`flex items-center gap-3 rounded-md px-3 py-2 text-body-sm transition-colors ${isActive
+        ? 'bg-primary text-primary-foreground'
+        : 'text-text-secondary hover:bg-accent hover:text-accent-foreground'
+        }`}
     >
       {children}
     </Link>
@@ -53,13 +52,13 @@ function NavLink({
 }
 
 const allNavItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: Home, requiresOwner: false },
-  { href: '/bookings', label: 'Bookings', icon: Calendar, requiresOwner: false },
-  { href: '/services', label: 'Services', icon: Briefcase, requiresOwner: false },
-  { href: '/staff', label: 'Staff', icon: Users, requiresOwner: true },
-  { href: '/availability', label: 'Availability', icon: Clock, requiresOwner: false },
-  { href: '/wallet', label: 'Wallet', icon: Wallet, requiresOwner: true },
-  { href: '/settings', label: 'Settings', icon: Settings, requiresOwner: true },
+  { href: '/dashboard', label: 'Dashboard', icon: Home, permission: 'view:dashboard' },
+  { href: '/bookings', label: 'Bookings', icon: Calendar, permission: 'booking:read' },
+  { href: '/services', label: 'Services', icon: Briefcase, permission: 'service:read' },
+  { href: '/staff', label: 'Staff', icon: Users, permission: 'manage:users' },
+  { href: '/availability', label: 'Availability', icon: Clock, permission: 'service:read' }, // Availability is usually tied to service/staff access
+  { href: '/wallet', label: 'Wallet', icon: Wallet, permission: 'wallet:read' },
+  { href: '/settings', label: 'Settings', icon: Settings, permission: 'manage:settings' },
 ]
 
 export function ProviderNav({
@@ -92,10 +91,7 @@ export function ProviderNav({
 
   // Filter nav items based on permissions
   const navItems = allNavItems.filter(item => {
-    if (item.requiresOwner) {
-      return canManageStaff(accessContext)
-    }
-    return true
+    return hasPermission(accessContext, item.permission)
   })
 
   const userIsStaff = isStaff(accessContext)
@@ -128,9 +124,8 @@ export function ProviderNav({
 
       {/* Sidebar - Desktop & Mobile */}
       <aside
-        className={`fixed left-0 top-0 z-40 h-screen w-64 border-r bg-card transition-transform lg:translate-x-0 ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:block`}
+        className={`fixed left-0 top-0 z-40 h-screen w-64 border-r bg-card transition-transform lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+          } lg:block`}
       >
         <div className="flex h-full flex-col">
           {/* Header */}

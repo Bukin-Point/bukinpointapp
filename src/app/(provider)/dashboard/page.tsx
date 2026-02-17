@@ -1,7 +1,7 @@
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { getProviderAccess, canViewAllBookings, canManageStaff, isStaff } from '@/lib/staff-helpers'
+import { getProviderAccess, canViewAllBookings, canManageStaff, isStaff, canViewWallet } from '@/lib/staff-helpers'
 import { getDashboardStats } from '@/actions/dashboard'
 import { StatsCard } from '@/components/provider/stats-card'
 import { RecentBookings } from '@/components/provider/recent-bookings'
@@ -25,7 +25,7 @@ export default async function DashboardPage({
   // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
   const headersList = await headers()
   const subdomainProviderId = headersList.get('x-provider-id')
-  
+
   const params = await searchParams
   // Prioritize subdomain provider ID over URL parameter for security
   const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
@@ -48,6 +48,7 @@ export default async function DashboardPage({
   const providerId = accessContext.provider.id
   const canViewAll = canViewAllBookings(accessContext)
   const canManage = canManageStaff(accessContext)
+  const canViewRevenue = canViewWallet(accessContext)
   const userIsStaff = isStaff(accessContext)
 
   // Fetch dashboard stats (will filter by staff if needed)
@@ -78,7 +79,7 @@ export default async function DashboardPage({
       <div>
         <h1 className="text-h1 mb-2">Dashboard</h1>
         <p className="text-body-sm text-text-secondary">
-          Welcome back{userIsStaff ? '' : `, ${accessContext.provider.businessName}`}! Here's what's happening with your business.
+          Welcome back{userIsStaff ? '' : `, ${accessContext.provider.businessName} `}! Here's what's happening with your business.
         </p>
       </div>
 
@@ -94,13 +95,15 @@ export default async function DashboardPage({
           value={stats.totalBookings.toLocaleString()}
           icon={Calendar}
         />
+        {canViewRevenue && (
+          <StatsCard
+            title="Total Revenue"
+            value={formattedRevenue}
+            icon={DollarSign}
+          />
+        )}
         {canManage && (
           <>
-            <StatsCard
-              title="Total Revenue"
-              value={formattedRevenue}
-              icon={DollarSign}
-            />
             <StatsCard
               title="Active Services"
               value={stats.activeServices}

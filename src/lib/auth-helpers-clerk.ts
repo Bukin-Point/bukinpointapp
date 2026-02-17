@@ -27,18 +27,21 @@ export async function getSession() {
 
   try {
     // 1. Try to find user by Clerk ID first
+    console.log(`[Auth] Fetching session for Clerk user: ${userId}`)
     let dbUser = await prisma.user.findUnique({
       where: { clerkUserId: userId },
     })
 
     // 2. If not found by Clerk ID, check by email
     if (!dbUser && userEmail) {
+      console.log(`[Auth] Clerk ID ${userId} not found in DB, checking by email: ${userEmail}`)
       dbUser = await prisma.user.findUnique({
         where: { email: userEmail },
       })
 
       // If found by email, link the Clerk ID
       if (dbUser) {
+        console.log(`[Auth] Found existing user by email, linking Clerk ID: ${dbUser.id}`)
         dbUser = await prisma.user.update({
           where: { id: dbUser.id },
           data: {
@@ -53,19 +56,20 @@ export async function getSession() {
 
     // 3. If still not found, create new user (using upsert on clerkUserId for safety)
     if (!dbUser) {
+      console.log(`[Auth] Creating new user for Clerk ID: ${userId}`)
       dbUser = await prisma.user.upsert({
         where: { clerkUserId: userId },
         create: {
           clerkUserId: userId,
           email: userEmail,
           emailVerified: isEmailVerified,
-          name: userName,
+          name: userName || 'New User', // Fallback for null name
           image: userImage,
         },
         update: {
           email: userEmail,
           emailVerified: isEmailVerified,
-          name: userName,
+          name: dbUser?.name || userName || 'User',
           image: userImage,
         },
       })
@@ -205,89 +209,46 @@ export async function requireAuth() {
 
 /**
  * Check if a user is a super admin based on RBAC roles
+ * Now driven by the 'system:manage' permission in the token or DB
  */
-export async function isUserSuperAdmin(email: string | null | undefined) {
-  if (!email) return false
+export async function isUserSuperAdmin() {
+  const { sessionClaims } = await auth()
 
-  // 1. Fallback to env var for bootstrap/recovery
-  const envAdmins = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase())
-  if (envAdmins.includes(email.toLowerCase())) return true
+  // 1. Check Token Claims (Fastest)
+  const permissions = (sessionClaims?.metadata as any)?.permissions || {}
+  const systemPerms = permissions['clsystemprovider000000'] || []
 
-  // 2. Check Database via UserProvider
-  // We need to find if user has ANY UserProvider with SUPERADMIN role
-  // Since SUPERADMIN is ideally global or attached to a system provider, we search across all providers for now OR rely on specific logic.
-  // Ideally, we'd have a system provider. For now, let's check if they have the role in ANY provider context they belong to.
+  if (systemPerms.includes('system:manage')) return true
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: {
-      provider: { // If they own a provider
-        select: {
-          // We can't access userProvider via provider easily the other way without back-relation or finding UserProvider where userId = user.id
-        }
-      }
-    }
-  })
-
-  // Better query: Find UserProvider records for this user that have the SUPERADMIN role
-  const userProviders = await prisma.userProvider.findMany({
-    where: {
-      user: { email },
-      roles: {
-        some: {
-          role: { name: 'SUPERADMIN' }
-        }
-      }
-    }
-  })
-
-  return userProviders.length > 0
+  return false
 }
 
 /**
- * Check if a user has a specific permission within a provider context
+ * Check if a user has a specific permission within a provider context.
+ * Uses session claims for instant verification without DB hits.
  */
-export async function hasPermission(userId: string, providerId: string, permissionName: string) {
-  const userProvider = await prisma.userProvider.findUnique({
-    where: {
-      userId_providerId: {
-        userId,
-        providerId
-      }
-    },
-    include: {
-      roles: {
-        include: {
-          role: {
-            include: {
-              rolePermissions: {
-                include: {
-                  permission: true
-                }
-              }
-            }
-          }
-        }
-      },
-      permissions: {
-        include: {
-          permission: true
-        }
-      }
-    }
-  })
+export async function hasPermission(providerId: string, permissionName: string) {
+  const { sessionClaims } = await auth()
 
-  if (!userProvider) return false
+  const metadata = (sessionClaims?.metadata as any) || {}
+  const allPermissions = metadata.permissions || {}
 
-  // 1. Check Roles
-  const rolePermissions = userProvider.roles.flatMap((upr: { role: { rolePermissions: { permission: { name: string } }[] } }) =>
-    upr.role.rolePermissions.map((rp: { permission: { name: string } }) => rp.permission.name)
-  )
+  // 1. Check specific provider permissions
+  const providerPerms = allPermissions[providerId] || []
+  if (providerPerms.includes(permissionName)) return true
 
-  // 2. Check Direct Permissions
-  const directPermissions = userProvider.permissions.map((upp: { permission: { name: string } }) => upp.permission.name)
+  // 2. Check for Global System Admin override
+  const systemPerms = allPermissions['clsystemprovider000000'] || []
+  if (systemPerms.includes('system:manage')) return true
 
-  const allPermissions = new Set([...rolePermissions, ...directPermissions])
+  return false
+}
 
-  return allPermissions.has(permissionName)
+/**
+ * Get all permissions for a provider from the session token
+ */
+export async function getProviderPermissions(providerId: string): Promise<string[]> {
+  const { sessionClaims } = await auth()
+  const allPermissions = (sessionClaims?.metadata as any)?.permissions || {}
+  return allPermissions[providerId] || []
 }

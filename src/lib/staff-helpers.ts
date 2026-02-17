@@ -1,5 +1,22 @@
+import { auth } from '@clerk/nextjs/server'
 import { prisma } from './db'
 import type { AccessContext } from './staff-helpers-client'
+
+// Full permission set for direct provider owners
+const PROVIDER_FULL_PERMISSIONS = [
+  'view:dashboard',
+  'manage:settings',
+  'booking:read',
+  'booking:create',
+  'booking:update',
+  'booking:delete',
+  'service:read',
+  'service:write',
+  'manage:users',
+  'manage:roles',
+  'wallet:read',
+  'wallet:payout'
+]
 
 // Re-export types and client-safe utilities from client file
 export type { UserProviderContext, ProviderContext, AccessContext } from './staff-helpers-client'
@@ -9,9 +26,12 @@ export {
   canManageStaff,
   canEditServices,
   canViewAllBookings,
+  canViewWallet,
+  canManageRoles,
   getProviderId,
   isStaff,
   getStaffRole,
+  hasPermission,
 } from './staff-helpers-client'
 
 /**
@@ -35,11 +55,11 @@ export async function getProviderAccess(
   userId: string,
   providerId?: string
 ): Promise<AccessContext | null> {
+  const { sessionClaims } = await auth()
+  const tokenPermissions = (sessionClaims?.metadata as any)?.permissions || {}
+
   // If providerId is specified, validate access and return that specific provider
   if (providerId) {
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'staff-helpers.ts:38', message: 'Checking provider access', data: { userId, providerId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-    // #endregion
     // Check if user is the provider owner
     const provider = await prisma.provider.findFirst({
       where: {
@@ -56,12 +76,11 @@ export async function getProviderAccess(
       },
     })
 
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'staff-helpers.ts:54', message: 'Provider ownership check result', data: { userId, providerId, isOwner: !!provider, providerBusinessName: provider?.businessName }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-    // #endregion
-
     if (provider) {
-      return { provider }
+      return {
+        provider,
+        permissions: tokenPermissions[providerId] || PROVIDER_FULL_PERMISSIONS
+      }
     }
 
     // Check if user has UserProvider relationship to this provider
@@ -95,10 +114,6 @@ export async function getProviderAccess(
       },
     })
 
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'staff-helpers.ts:77', message: 'UserProvider relationship check result', data: { userId, providerId, hasAccess: !!userProvider, roles: userProvider?.roles.map(r => r.role.name), providerStatus: userProvider?.provider?.status }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-    // #endregion
-
     if (userProvider && userProvider.provider.status === 'ACTIVE') {
       return {
         userProvider: {
@@ -116,20 +131,17 @@ export async function getProviderAccess(
           industry: userProvider.provider.industry,
           businessImage: userProvider.provider.businessImage,
         },
+        permissions: tokenPermissions[providerId] || []
       }
     }
 
-    // User doesn't have access to this provider
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'staff-helpers.ts:94', message: 'No access to provider', data: { userId, providerId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-    // #endregion
     return null
   }
 
   // Backward compatibility: return first available provider
   // First check if user is a provider
-  const provider = await prisma.provider.findUnique({
-    where: { userId },
+  const provider = await prisma.provider.findFirst({
+    where: { userId, status: 'ACTIVE' },
     select: {
       id: true,
       businessName: true,
@@ -140,12 +152,15 @@ export async function getProviderAccess(
   })
 
   if (provider) {
-    return { provider }
+    return {
+      provider,
+      permissions: tokenPermissions[provider.id] || PROVIDER_FULL_PERMISSIONS
+    }
   }
 
   // If not provider, check if user has UserProvider relationship
   const userProvider = await prisma.userProvider.findFirst({
-    where: { userId },
+    where: { userId, isActive: true },
     include: {
       provider: {
         select: {
@@ -154,6 +169,7 @@ export async function getProviderAccess(
           industry: true,
           userId: true,
           businessImage: true,
+          status: true,
         },
       },
       roles: {
@@ -169,7 +185,7 @@ export async function getProviderAccess(
     },
   })
 
-  if (userProvider) {
+  if (userProvider && userProvider.provider?.status === 'ACTIVE') {
     return {
       userProvider: {
         id: userProvider.id,
@@ -186,6 +202,7 @@ export async function getProviderAccess(
         userId: userProvider.provider.userId,
         businessImage: userProvider.provider.businessImage,
       },
+      permissions: tokenPermissions[userProvider.providerId] || []
     }
   }
 
