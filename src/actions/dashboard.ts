@@ -79,21 +79,12 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
     let activeStaff = 0
 
     if (!staffUserId) {
-      // Get total revenue (sum of netAmount from completed bookings' transactions)
-      const revenueResult = await prisma.transaction.aggregate({
-        where: {
-          booking: {
-            ...bookingWhere,
-            status: 'COMPLETED',
-          },
-          status: 'PAID',
-        },
-        _sum: {
-          netAmount: true,
-        },
+      // Get total revenue from the provider's wallet to ensure consistency with the Wallet tab
+      const wallet = await prisma.wallet.findUnique({
+        where: { providerId }
       })
 
-      totalRevenue = revenueResult._sum.netAmount ? Number(revenueResult._sum.netAmount) : 0
+      totalRevenue = wallet ? Number(wallet.totalEarnings) : 0
 
       // Get active services count
       activeServices = await prisma.service.count({

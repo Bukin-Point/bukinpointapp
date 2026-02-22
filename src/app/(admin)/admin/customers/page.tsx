@@ -1,7 +1,9 @@
 import { getAllPlatformUsers } from '@/actions/admin'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { User, Mail, Calendar, BookOpen, UserPlus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { User, Mail, Calendar, BookOpen, UserPlus, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 
 export default async function AdminCustomersPage() {
     const result = await getAllPlatformUsers()
@@ -58,6 +60,14 @@ export default async function AdminCustomersPage() {
                                         <Calendar className="h-3 w-3" />
                                         {new Date(user.createdAt).toLocaleDateString()}
                                     </div>
+                                </div>
+
+                                <div className="flex items-center ml-4">
+                                    <Link href={`/admin/customers/${user.id}`}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary">
+                                            <ExternalLink className="h-4 w-4" />
+                                        </Button>
+                                    </Link>
                                 </div>
                             </div>
                         </CardContent>

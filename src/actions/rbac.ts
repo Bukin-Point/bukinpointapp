@@ -57,6 +57,12 @@ export async function syncUserRBAC(userId: string) {
             // (Though ideally the OWNER role handles this, we can be defensive)
             if (up.isOwner) {
                 perms.add('manage:settings')
+                perms.add('service:write')
+                perms.add('service:read')
+                perms.add('booking:read')
+                perms.add('booking:write')
+                perms.add('staff:read')
+                perms.add('staff:write')
             }
 
             permissionsMap[up.providerId] = Array.from(perms)

@@ -142,3 +142,101 @@ export async function updateGlobalGateway(gateway: PaymentGateway) {
         return { success: false, error: 'Failed to update gateway' }
     }
 }
+
+export async function getProviderDetails(providerId: string) {
+    try {
+        const session = await getSession()
+        if (!session) return { success: false, error: 'Unauthorized' }
+        const canManageSystem = await hasPermission('clsystemprovider000000', 'system:manage')
+        if (!canManageSystem) return { success: false, error: 'Forbidden' }
+
+        const provider = await prisma.provider.findUnique({
+            where: { id: providerId },
+            include: {
+                user: { select: { email: true, name: true, image: true } },
+                services: { orderBy: { name: 'asc' } },
+                userProviders: {
+                    include: { user: { select: { name: true, email: true, image: true } } },
+                    where: { isActive: true }
+                },
+                _count: { select: { bookings: true, staffInvitations: true } },
+                wallet: true
+            }
+        })
+
+        if (!provider) return { success: false, error: 'Provider not found' }
+
+        // Get recent bookings for this provider
+        const recentBookings = await prisma.booking.findMany({
+            where: { providerId },
+            take: 10,
+            orderBy: { bookingDate: 'desc' },
+            include: { service: { select: { name: true } } }
+        })
+
+        return { success: true, provider, recentBookings }
+    } catch (error) {
+        console.error('[Admin] Error fetching provider details:', error)
+        return { success: false, error: 'Failed to fetch provider details' }
+    }
+}
+
+export async function getCustomerDetails(userId: string) {
+    try {
+        const session = await getSession()
+        if (!session) return { success: false, error: 'Unauthorized' }
+        const canManageSystem = await hasPermission('clsystemprovider000000', 'system:manage')
+        if (!canManageSystem) return { success: false, error: 'Forbidden' }
+
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: {
+                bookings: {
+                    include: {
+                        provider: { select: { businessName: true } },
+                        service: { select: { name: true } },
+                        transaction: true
+                    },
+                    orderBy: { bookingDate: 'desc' }
+                },
+                _count: { select: { userProviders: true } }
+            }
+        })
+
+        if (!user) return { success: false, error: 'User not found' }
+
+        return { success: true, user }
+    } catch (error) {
+        console.error('[Admin] Error fetching customer details:', error)
+        return { success: false, error: 'Failed to fetch customer details' }
+    }
+}
+
+export async function getTransactionDetails(transactionId: string) {
+    try {
+        const session = await getSession()
+        if (!session) return { success: false, error: 'Unauthorized' }
+        const canManageSystem = await hasPermission('clsystemprovider000000', 'system:manage')
+        if (!canManageSystem) return { success: false, error: 'Forbidden' }
+
+        const transaction = await prisma.transaction.findUnique({
+            where: { id: transactionId },
+            include: {
+                booking: {
+                    include: {
+                        provider: true,
+                        service: true,
+                        user: { select: { name: true, email: true } }
+                    }
+                }
+            }
+        })
+
+        if (!transaction) return { success: false, error: 'Transaction not found' }
+
+        return { success: true, transaction }
+    } catch (error) {
+        console.error('[Admin] Error fetching transaction details:', error)
+        return { success: false, error: 'Failed to fetch transaction details' }
+    }
+}

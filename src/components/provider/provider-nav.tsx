@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Settings,
+  ShieldCheck
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useClerk } from '@clerk/nextjs'
@@ -177,6 +178,22 @@ export function ProviderNav({
                 </NavLink>
               )
             })}
+
+            {/* {hasPermission(accessContext, 'system:manage') && (
+              <div className="pt-4 mt-4 border-t border-primary/10">
+                <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-primary opacity-70">
+                  Platform Admin
+                </p>
+                <Link
+                  href="/admin/dashboard"
+                  target="_blank"
+                  className="flex items-center gap-3 rounded-md px-3 py-2 text-body-sm transition-colors text-primary hover:bg-primary/10"
+                >
+                  <ShieldCheck className="h-5 w-5" />
+                  <span>Admin Dashboard</span>
+                </Link>
+              </div>
+            )} */}
           </nav>
 
           {/* Footer with Logout */}

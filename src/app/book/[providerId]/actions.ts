@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { lockSlot, releaseSlot, getCachedSlots, setCachedSlots, invalidateSlotCache } from '@/lib/redis'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { getPaymentGateway } from '@/lib/payments/gateway-factory'
+import { fulfillPaymentSuccess } from '@/lib/payments/fulfill-payment'
 
 const createBookingSchema = z.object({
   providerId: z.string(),
@@ -51,9 +52,7 @@ export async function createBooking(data: z.infer<typeof createBookingSchema>) {
         select: { price: true, name: true },
       })
       if (!service) return { error: 'Service not found' }
-      if (Number(service.price) < 100) {
-        return { error: 'Service price must be at least ₦100.' }
-      }
+      console.log(`[createBooking] Starting for service: ${service.name}, price: ${service.price}`)
 
       // Prevent booking past times
       const now = new Date()
@@ -443,8 +442,23 @@ export async function getBookingByRef(bookingRef: string) {
   }
 }
 
+import { calculateServiceCharge } from '@/lib/payments/fees'
+
 /**
- * Initialize payment for a booking using the DB-configured gateway (OPay or Paystack).
+ * Get the fee breakdown for a service.
+ */
+export async function getPaymentBreakdown(serviceId: string) {
+  const service = await prisma.service.findUnique({
+    where: { id: serviceId },
+    select: { price: true }
+  })
+  if (!service) return { error: 'Service not found' }
+  const breakdown = await calculateServiceCharge(Number(service.price))
+  return { success: true, ...breakdown }
+}
+
+/**
+ * Initialize payment for a booking using the DB-configured gateway (OPAY or PAYSTACK).
  * Returns the URL to redirect the customer to the gateway's checkout page.
  */
 export async function initiateBookingPayment(bookingRef: string) {
@@ -454,43 +468,63 @@ export async function initiateBookingPayment(bookingRef: string) {
   })
   if (!booking) return { error: 'Booking not found' }
   if (booking.paymentStatus === 'PAID') return { error: 'Booking is already paid.' }
-  if (Number(booking.service.price) < 100) return { error: 'Service price must be at least ₦100.' }
+
+  console.log(`[initiateBookingPayment] Starting for ref: ${bookingRef}, price: ${booking.service.price}`)
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const date = booking.bookingDate.toISOString().split('T')[0]
   const time = `${booking.startTime}–${booking.endTime}`
 
   const servicePrice = Number(booking.service.price)
-  const platformFeePercentage = Number(process.env.PLATFORM_FEE_PERCENTAGE || 10)
-  const platformFee = Math.min(servicePrice * (platformFeePercentage / 100), 1000)
-  const totalAmountKobo = Math.round((servicePrice + platformFee) * 100)
+  const { totalKobo, total } = await calculateServiceCharge(servicePrice)
+
+  // Skip payment gateway for free services
+  if (totalKobo === 0 || total === 0) {
+    console.log(`[initiateBookingPayment] Free service detected for ${bookingRef}. Fulfilling immediately.`)
+    await fulfillPaymentSuccess({
+      reference: booking.bookingRef,
+      transactionId: 'FREE_SERVICE',
+      gatewayName: 'PAYSTACK' // Defaulting for free
+    })
+    return { success: true, cashierUrl: `${baseUrl}/book/${booking.providerId}/confirm?ref=${booking.bookingRef}` }
+  }
 
   const gateway = await getPaymentGateway(booking.providerId)
   const callbackPath = gateway.name === 'PAYSTACK' ? '/api/webhooks/paystack' : '/api/webhooks/opay'
 
-  // For Paystack, 'callbackUrl' is the redirect URL after payment. 
-  // We should redirect to the confirmation page, NOT the webhook API.
-  // Ideally, the confirmation page will verify the transaction client-side or server-side on load.
   const paystackRedirectUrl = `${baseUrl}/book/${booking.providerId}/confirm?ref=${booking.bookingRef}`
 
-  const result = await gateway.initializePayment({
+  const initParams = {
     bookingId: booking.id,
     reference: booking.bookingRef,
-    amountKobo: totalAmountKobo,
+    amountKobo: totalKobo,
     currency: 'NGN',
     customerEmail: booking.customerEmail ?? booking.customerName,
     customerName: booking.customerName,
     customerPhone: booking.customerPhone,
-    // Paystack uses callbackUrl for redirect; OPay uses callbackUrl for server-server notification
     callbackUrl: gateway.name === 'PAYSTACK' ? paystackRedirectUrl : `${baseUrl}${callbackPath}`,
     returnUrl: `${baseUrl}/book/${booking.providerId}/confirm?ref=${booking.bookingRef}`,
     cancelUrl: `${baseUrl}/book/${booking.providerId}?payment=cancelled`,
     productName: booking.service.name,
     productDescription: `Booking: ${booking.service.name} - ${date} ${time}`,
-  })
+  }
 
-  if ('error' in result) return { error: result.error }
-  return { success: true, cashierUrl: result.redirectUrl }
+  console.log(`[initiateBookingPayment] Initializing ${gateway.name} with params:`, JSON.stringify(initParams, null, 2))
+
+  try {
+    const result = await gateway.initializePayment(initParams)
+
+    if ('error' in result) {
+      console.error(`[initiateBookingPayment] ${gateway.name} initialization failed:`, result.error)
+      return { error: result.error }
+    }
+
+    console.log(`[initiateBookingPayment] ${gateway.name} success, redirectUrl:`, result.redirectUrl)
+    return { success: true, cashierUrl: result.redirectUrl }
+  } catch (err) {
+    console.error(`[initiateBookingPayment] Unexpected error during ${gateway.name} initialization:`, err)
+    return { error: `Payment initialization failed: ${err instanceof Error ? err.message : 'Unknown error'}` }
+  }
 }
 
 /** @deprecated Use initiateBookingPayment. Kept for backward compatibility. */

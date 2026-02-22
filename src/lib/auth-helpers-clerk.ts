@@ -169,6 +169,7 @@ export async function getUserType(session: { user: { id: string } } | null): Pro
   // Check Clerk metadata first (faster, no database query)
   const metadataType = await getUserTypeFromMetadata()
   if (metadataType) {
+    console.log(`[Auth] Identity found in Clerk metadata: ${metadataType}`)
     return metadataType
   }
 
@@ -179,6 +180,7 @@ export async function getUserType(session: { user: { id: string } } | null): Pro
   })
 
   if (provider) {
+    console.log(`[Auth] Identity found in DB (Provider record exists): provider`)
     return 'provider'
   }
 

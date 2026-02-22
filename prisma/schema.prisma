@@ -366,11 +366,13 @@ model Wallet {
   provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 }
 
-// Global payment gateway configuration (single row; default = OPAY)
+// Global payment gateway configuration (single row; default = PAYSTACK)
 model PaymentConfig {
-  id             String        @id @default(cuid())
-  currentGateway PaymentGateway @default(OPAY)
-  updatedAt      DateTime      @updatedAt
+  id                     String         @id @default(cuid())
+  currentGateway         PaymentGateway @default(PAYSTACK)
+  platformFeePercentage  Decimal        @default(2.5) @db.Decimal(5, 2)
+  platformFeeCap         Decimal        @default(2000) @db.Decimal(10, 2)
+  updatedAt              DateTime       @updatedAt
 }
 
 model Account {

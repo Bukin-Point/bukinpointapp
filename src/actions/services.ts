@@ -11,7 +11,7 @@ const serviceSchema = z.object({
   description: z.string().optional(),
   image: z.union([z.string().url(), z.literal(''), z.null()]).optional(),
   duration: z.number().int().min(15, 'Duration must be at least 15 minutes'),
-  price: z.number().min(100, 'Price must be at least ₦100'),
+  price: z.number().min(0, 'Price cannot be negative'),
   isActive: z.boolean().default(true),
 })
 
@@ -26,9 +26,14 @@ const updateServiceSchema = serviceSchema.partial().extend({
 export async function createService(data: z.infer<typeof createServiceSchema>) {
   try {
     const validated = createServiceSchema.parse(data)
+    console.log(`[Services] Creating service for provider: ${validated.providerId}`, validated)
 
     // Authorization check
-    if (!(await hasPermission(validated.providerId, 'service:write'))) {
+    const hasPerm = await hasPermission(validated.providerId, 'service:write')
+    console.log(` - Permission 'service:write' check: ${hasPerm}`)
+
+    if (!hasPerm) {
+      console.error(`[Services] Permission denied for provider ${validated.providerId}`)
       return { error: 'Unauthorized: You do not have permission to manage services.' }
     }
 
@@ -84,10 +89,11 @@ export async function createService(data: z.infer<typeof createServiceSchema>) {
     return { success: true, service }
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.log(`[Services] Validation error creating service:`, error.issues)
       return { error: error.issues[0]?.message || 'Validation error' }
     }
-    console.error('Error creating service:', error)
-    return { error: 'Failed to create service' }
+    console.error('[Services] Error creating service:', error)
+    return { error: error instanceof Error ? error.message : 'Failed to create service' }
   }
 }
 

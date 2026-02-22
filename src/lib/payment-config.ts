@@ -28,23 +28,33 @@ export async function getCurrentGatewayForProvider(
   })
 
   if (!config) {
-    await prisma.paymentConfig.upsert({
-      where: { id: PAYMENT_CONFIG_ID },
-      create: {
+    try {
+      // Use casted object for upsert to avoid Prisma validation errors on newer fields if client is outdated
+      const upsertData: any = {
         id: PAYMENT_CONFIG_ID,
-        currentGateway: 'OPAY',
+        currentGateway: 'PAYSTACK',
+        platformFeePercentage: 2.5,
+        platformFeeCap: 2000,
         updatedAt: new Date(),
-      },
-      update: {},
-      select: { currentGateway: true },
-    })
-    config = await prisma.paymentConfig.findFirst({
-      orderBy: { updatedAt: 'desc' },
-      select: { currentGateway: true },
-    })
+      }
+
+      await prisma.paymentConfig.upsert({
+        where: { id: PAYMENT_CONFIG_ID },
+        create: upsertData,
+        update: {},
+      })
+
+      config = await prisma.paymentConfig.findFirst({
+        orderBy: { updatedAt: 'desc' },
+        select: { currentGateway: true },
+      })
+    } catch (err) {
+      console.error('[getCurrentGatewayForProvider] Config initialization failed:', err)
+      return 'PAYSTACK'
+    }
   }
 
-  return config?.currentGateway ?? 'OPAY'
+  return config?.currentGateway ?? 'PAYSTACK'
 }
 
 /**
@@ -79,7 +89,7 @@ export async function getGlobalPaymentGateway(): Promise<PaymentGateway> {
     orderBy: { updatedAt: 'desc' },
     select: { currentGateway: true },
   })
-  return config?.currentGateway ?? 'OPAY'
+  return config?.currentGateway ?? 'PAYSTACK'
 }
 
 /**

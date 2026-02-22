@@ -186,6 +186,18 @@ export default async function ProviderRedirectPage({
     }
   }
 
+  // ALWAYS sync RBAC permissions on redirect to ensure token is fresh
+  try {
+    const { syncUserRBAC } = await import('@/actions/rbac')
+    console.log(`[Redirect] Syncing RBAC for user: ${userId}`)
+    await Promise.race([
+      syncUserRBAC(userId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('RBAC Sync Timeout')), 3000)),
+    ])
+  } catch (error) {
+    console.warn('[Redirect] RBAC sync failed or timed out:', error)
+  }
+
   // If metadata says customer but we're in provider redirect, redirect to customer dashboard
   if (accountTypeFromMetadata === 'customer') {
     console.log('[Redirect] Overriding to customer dashboard based on metadata')

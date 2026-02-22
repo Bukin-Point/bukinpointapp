@@ -35,9 +35,14 @@ interface CustomerFormProps {
   } | null
   userPhone?: string | null
   gatewayName?: string
+  breakdown?: {
+    fee: number
+    percentage: number
+    total: number
+  }
 }
 
-export function CustomerForm({ service, date, time, onSubmit, onBack, loading, session, userPhone, gatewayName = 'OPAY' }: CustomerFormProps) {
+export function CustomerForm({ service, date, time, onSubmit, onBack, loading, session, userPhone, gatewayName = 'PAYSTACK', breakdown }: CustomerFormProps) {
   const [formData, setFormData] = useState({
     name: session?.user?.name || '',
     phone: userPhone || '',
@@ -88,21 +93,23 @@ export function CustomerForm({ service, date, time, onSubmit, onBack, loading, s
           <div className="rounded-md bg-gray-50 p-4">
             <h3 className="mb-2 font-medium">Booking Summary</h3>
             <div className="space-y-1 text-body-sm">
-              <div className="flex justify-between">
+              <div className="flex justify-between border-b pb-1 mb-1">
                 <span className="text-text-secondary">Service:</span>
-                <span className="font-medium">{service.name}</span>
+                <span className="font-medium text-right">{service.name} ({time})</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-secondary">Date:</span>
-                <span className="font-medium">{format(date, 'MMMM d, yyyy')}</span>
+                <span className="text-text-secondary">Subtotal:</span>
+                <span className="font-medium text-right">₦{service.price.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Time:</span>
-                <span className="font-medium">{time}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-text-secondary">Price:</span>
-                <span className="font-medium">₦{service.price.toLocaleString()}</span>
+              {breakdown && (
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">Service Charge ({breakdown.percentage}%):</span>
+                  <span className="font-medium text-right">₦{breakdown.fee.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t pt-1 mt-1 text-body font-bold">
+                <span>Total:</span>
+                <span>₦{(breakdown?.total || service.price).toLocaleString()}</span>
               </div>
             </div>
           </div>

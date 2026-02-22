@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { sendBookingConfirmationEmail, sendProviderBookingNotificationEmail } from '@/lib/email'
 import { PaymentGateway } from '@prisma/client'
+import { calculateServiceCharge } from './fees'
 
 /**
  * Idempotent: mark booking as paid, create transaction, update wallet, send emails.
@@ -24,46 +25,59 @@ export async function fulfillPaymentSuccess(params: {
   if (existingTx) return
 
   const servicePrice = Number(booking.service.price)
-  const platformFeePercentage = Number(process.env.PLATFORM_FEE_PERCENTAGE || 10)
-  const platformFee = Math.min(servicePrice * (platformFeePercentage / 100), 1000)
-  const totalPaid = servicePrice + platformFee
+  const { fee: platformFee, total: totalPaid } = await calculateServiceCharge(servicePrice)
   const netAmount = servicePrice
 
-  await prisma.$transaction(async (tx) => {
-    const existing = await tx.transaction.findUnique({
-      where: { bookingId: booking.id },
-    })
-    if (existing) return
+  console.log(`[fulfillPaymentSuccess] Starting transaction for booking ${booking.id}. netAmount: ${netAmount}`)
 
-    await tx.booking.update({
-      where: { bookingRef: params.reference },
-      data: {
-        status: 'CONFIRMED',
-        paymentStatus: 'PAID',
-        paymentRef: params.transactionId ?? null,
-      },
-    })
+  try {
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.transaction.findUnique({
+        where: { bookingId: booking.id },
+      })
+      if (existing) {
+        console.log(`[fulfillPaymentSuccess] Transaction already exists for booking ${booking.id}`)
+        return
+      }
 
-    await tx.transaction.create({
-      data: {
-        bookingId: booking.id,
-        amount: totalPaid,
-        platformFee,
-        netAmount,
-        paymentProvider: params.gatewayName,
-        providerRef: params.transactionId ?? null,
-        status: 'PAID',
-      },
-    })
+      console.log(`[fulfillPaymentSuccess] Updating booking ${booking.bookingRef} to CONFIRMED/PAID`)
+      await tx.booking.update({
+        where: { bookingRef: params.reference },
+        data: {
+          status: 'CONFIRMED',
+          paymentStatus: 'PAID',
+          paymentRef: params.transactionId ?? null,
+        },
+      })
 
-    await tx.wallet.update({
-      where: { providerId: booking.providerId },
-      data: {
-        balance: { increment: netAmount },
-        totalEarnings: { increment: netAmount },
-      },
+      console.log(`[fulfillPaymentSuccess] Creating transaction record for booking ${booking.id}`)
+      await tx.transaction.create({
+        data: {
+          bookingId: booking.id,
+          amount: totalPaid,
+          platformFee,
+          netAmount,
+          paymentProvider: params.gatewayName,
+          providerRef: params.transactionId ?? null,
+          status: 'PAID',
+        },
+      })
+
+      console.log(`[fulfillPaymentSuccess] Updating wallet for provider ${booking.providerId}. Incrementing by ${netAmount}`)
+      await tx.wallet.update({
+        where: { providerId: booking.providerId },
+        data: {
+          balance: { increment: netAmount },
+          totalEarnings: { increment: netAmount },
+        },
+      })
+      console.log(`[fulfillPaymentSuccess] Wallet update successful`)
     })
-  })
+    console.log(`[fulfillPaymentSuccess] Transaction committed successfully for booking ${booking.id}`)
+  } catch (error) {
+    console.error(`[fulfillPaymentSuccess] Transaction failed for booking ${booking.id}:`, error)
+    throw error // Re-throw to allow webhook to handle failure
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
@@ -100,4 +114,10 @@ export async function fulfillPaymentSuccess(params: {
       bookingUrl: `${appUrl}/bookings`,
     }).catch((e) => console.error('fulfillPaymentSuccess: sendProviderBookingNotificationEmail error', e))
   }
+
+  // Clear cache for the provider's views so new balances and books show up immediately
+  const { revalidatePath } = await import('next/cache')
+  revalidatePath('/bookings')
+  revalidatePath('/wallet')
+  revalidatePath('/dashboard')
 }

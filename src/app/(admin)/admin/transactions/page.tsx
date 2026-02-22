@@ -2,6 +2,7 @@ import { getAllTransactions } from '@/actions/admin'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CreditCard, ArrowRight, Building2, Briefcase } from 'lucide-react'
+import Link from 'next/link'
 import { formatCurrency } from '@/lib/utils'
 
 export default async function AdminTransactionsPage() {
@@ -35,8 +36,12 @@ export default async function AdminTransactionsPage() {
                         </thead>
                         <tbody className="divide-y">
                             {result.transactions.map((tx: any) => (
-                                <tr key={tx.id} className="hover:bg-accent/30 transition-colors">
-                                    <td className="px-6 py-4 font-mono text-xs text-text-secondary">{tx.id}</td>
+                                <tr key={tx.id} className="hover:bg-accent/30 transition-colors group">
+                                    <td className="px-6 py-4 font-mono text-xs text-text-secondary">
+                                        <Link href={`/admin/transactions/${tx.id}`} className="hover:text-primary hover:underline">
+                                            {tx.id}
+                                        </Link>
+                                    </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-1 font-medium">
@@ -57,7 +62,7 @@ export default async function AdminTransactionsPage() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <Badge
-                                            variant={tx.status === 'PAID' ? 'success' : 'secondary'}
+                                            variant={tx.status === 'PAID' ? 'outline' : 'secondary'}
                                             className={tx.status === 'PAID' ? 'bg-green-100 text-green-700' : ''}
                                         >
                                             {tx.status}
@@ -65,6 +70,11 @@ export default async function AdminTransactionsPage() {
                                     </td>
                                     <td className="px-6 py-4 text-text-secondary text-xs">
                                         {new Date(tx.createdAt).toLocaleString()}
+                                    </td>
+                                    <td className="px-6 py-4 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Link href={`/admin/transactions/${tx.id}`}>
+                                            <ArrowRight className="h-4 w-4 text-primary" />
+                                        </Link>
                                     </td>
                                 </tr>
                             ))}

@@ -72,15 +72,13 @@ async function BookingConfirmationContent({ bookingRef }: { bookingRef: string }
         const verification = await gateway.verifyPayment(bookingRef)
 
         if (verification.success) {
-          await prisma.booking.update({
-            where: { id: booking.id },
-            data: {
-              status: 'CONFIRMED',
-              paymentStatus: 'PAID',
-              paymentRef: verification.transactionId,
-              updatedAt: new Date(),
-            },
+          const { fulfillPaymentSuccess } = await import('@/lib/payments/fulfill-payment')
+          await fulfillPaymentSuccess({
+            reference: bookingRef,
+            transactionId: verification.transactionId,
+            gatewayName: 'PAYSTACK'
           })
+
           // Update local object to reflect change immediately in UI
           booking.status = 'CONFIRMED'
           booking.paymentStatus = 'PAID'
@@ -90,6 +88,7 @@ async function BookingConfirmationContent({ bookingRef }: { bookingRef: string }
       console.error('Error verifying payment on confirm page:', e)
     }
   }
+
 
   if (!booking) {
     return (

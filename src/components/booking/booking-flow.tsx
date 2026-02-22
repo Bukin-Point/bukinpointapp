@@ -5,7 +5,7 @@ import { Provider, UserProvider } from '@prisma/client'
 import { ServiceSelector } from './service-selector'
 import { TimePicker } from './time-picker'
 import { CustomerForm } from './customer-form'
-import { createBooking, initiateBookingPayment } from '@/app/book/[providerId]/actions'
+import { createBooking, initiateBookingPayment, getPaymentBreakdown } from '@/app/book/[providerId]/actions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 // Serialized Service type with price as number instead of Decimal
@@ -51,6 +51,22 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone, ga
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [paymentBookingRef, setPaymentBookingRef] = useState<string | null>(null)
+  const [breakdown, setBreakdown] = useState<{ fee: number; percentage: number; total: number } | null>(null)
+
+  // Fetch breakdown when service is selected and we move to customer step
+  useEffect(() => {
+    if (selectedService && step === 'customer') {
+      getPaymentBreakdown(selectedService.id).then(res => {
+        if ('success' in res && res.success) {
+          setBreakdown({
+            fee: res.fee!,
+            percentage: res.percentage!,
+            total: res.total!
+          })
+        }
+      })
+    }
+  }, [selectedService, step])
 
   // Auto-select service if initialServiceId is provided
   useEffect(() => {
@@ -132,12 +148,17 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone, ga
         consentGiven: customerData.consentGiven,
       })
 
+      console.log('[BookingFlow] createBooking result:', result)
+
       if (result.error) {
         setError(result.error)
         setLoading(false)
       } else if (result.booking) {
         const cashier = await initiateBookingPayment(result.booking.bookingRef)
+        console.log('[BookingFlow] initiateBookingPayment result:', cashier)
+
         if (cashier.cashierUrl) {
+          console.log('[BookingFlow] Redirecting to:', cashier.cashierUrl)
           window.location.href = cashier.cashierUrl
         } else {
           setError(cashier.error ?? 'Failed to start payment')
@@ -145,6 +166,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone, ga
         }
       }
     } catch (err) {
+      console.error('[BookingFlow] unexpected error:', err)
       setError('An unexpected error occurred')
       setLoading(false)
     }
@@ -194,6 +216,7 @@ export function BookingFlow({ provider, session, initialServiceId, userPhone, ga
           session={session}
           userPhone={userPhone}
           gatewayName={gatewayName}
+          breakdown={breakdown || undefined}
         />
       )}
     </div>

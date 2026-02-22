@@ -1,7 +1,9 @@
 import { getAllProviders } from '@/actions/admin'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Building2, Globe, Calendar, Users, Briefcase } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 export default async function AdminProvidersPage() {
@@ -51,7 +53,7 @@ export default async function AdminProvidersPage() {
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm font-medium text-text-secondary">Status</span>
                                             <Badge
-                                                variant={provider.status === 'ACTIVE' ? 'success' : 'secondary'}
+                                                variant={provider.status === 'ACTIVE' ? 'outline' : 'secondary'}
                                                 className={cn(
                                                     provider.status === 'ACTIVE'
                                                         ? 'bg-green-100 text-green-700'
@@ -77,6 +79,14 @@ export default async function AdminProvidersPage() {
                                                     {provider._count.bookings}
                                                 </div>
                                             </div>
+                                        </div>
+
+                                        <div className="pt-2">
+                                            <Link href={`/admin/providers/${provider.id}`} className="block w-full">
+                                                <Button variant="outline" size="sm" className="w-full text-xs h-9">
+                                                    Manage Provider
+                                                </Button>
+                                            </Link>
                                         </div>
                                     </div>
                                 </div>

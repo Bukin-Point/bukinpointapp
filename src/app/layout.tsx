@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" className={poppins.variable}>
-        <body className="antialiased">
+        <body className="antialiased" suppressHydrationWarning>
           <NextTopLoader
             color="#000000"
             initialPosition={0.08}
