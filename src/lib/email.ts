@@ -22,6 +22,7 @@ export interface BookingConfirmationEmailData {
   staffName: string | null
   price: number
   providerPhone?: string
+  completionCode?: string
 }
 
 export interface ProviderBookingNotificationEmailData {
@@ -271,6 +272,17 @@ export async function sendBookingConfirmationEmail(
                   </tr>
                 </table>
               </div>
+              
+              ${data.completionCode ? `
+              <div style="background-color: #fce7f3; border-left: 4px solid #db2777; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                <h3 style="color: #9d174d; font-size: 18px; margin-top: 0;">Authorization Code</h3>
+                <p style="color: #831843; font-size: 16px; margin: 0;">
+                  Once your appointment is complete and you are satisfied with the service, please provide this 4-digit code to the provider so they can be paid for their work.
+                </p>
+                <div style="margin-top: 15px; text-align: center;">
+                  <span style="font-size: 32px; font-weight: 800; letter-spacing: 5px; color: #db2777;">${data.completionCode}</span>
+                </div>
+              </div>` : ''}
               
               <p style="color: #666; font-size: 16px;">
                 <strong>What's next?</strong> The provider will review your booking and confirm it shortly. You'll receive another email once your booking is confirmed.

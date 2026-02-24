@@ -86,6 +86,7 @@ export default async function WalletPage({
   const serializedWallet = {
     ...provider.wallet,
     balance: Number(provider.wallet.balance),
+    pendingBalance: Number(provider.wallet.pendingBalance),
     totalEarnings: Number(provider.wallet.totalEarnings),
   }
 

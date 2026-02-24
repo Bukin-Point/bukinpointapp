@@ -12,7 +12,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
-import { CheckCircle, XCircle, User, Phone, Mail, Calendar, Clock, UserCircle, FileText } from 'lucide-react'
+import { CheckCircle, XCircle, User, Phone, Mail, Calendar, Clock, UserCircle, FileText, KeyRound } from 'lucide-react'
+import { useState } from 'react'
+import { completeBookingWithCode } from '@/actions/bookings'
+import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
 
 type BookingWithRelations = Booking & {
   service: {
@@ -26,6 +30,7 @@ type BookingWithRelations = Booking & {
       email: string
     }
   }
+  completionCode?: string | null
 }
 
 interface BookingDetailsModalProps {
@@ -51,7 +56,19 @@ export function BookingDetailsModal({
   onStatusUpdate,
   loading = false,
 }: BookingDetailsModalProps) {
+  const [showCodeInput, setShowCodeInput] = useState(false)
+  const [completionCode, setCompletionCode] = useState('')
+  const [isCompleting, setIsCompleting] = useState(false)
+  const [codeError, setCodeError] = useState<string | null>(null)
+
   if (!booking) return null
+
+  // Reset state when modal closes/opens
+  if (!open && showCodeInput) {
+    setShowCodeInput(false)
+    setCompletionCode('')
+    setCodeError(null)
+  }
 
   const formattedDate = format(new Date(booking.bookingDate), 'EEEE, MMMM d, yyyy')
   const formattedTime = `${booking.startTime} - ${booking.endTime}`
@@ -208,35 +225,114 @@ export function BookingDetailsModal({
             )}
             {booking.status === 'CONFIRMED' && (
               <>
-                <Button
-                  onClick={() => {
-                    onStatusUpdate(booking.id, 'COMPLETED')
-                    onOpenChange(false)
-                  }}
-                  disabled={loading}
-                  className="flex-1 sm:flex-initial"
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Mark Completed
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    onStatusUpdate(booking.id, 'NO_SHOW')
-                    onOpenChange(false)
-                  }}
-                  disabled={loading}
-                  className="flex-1 sm:flex-initial"
-                >
-                  <XCircle className="mr-2 h-4 w-4" />
-                  No Show
-                </Button>
+                {!showCodeInput ? (
+                  <Button
+                    onClick={() => {
+                      if (booking.completionCode || booking.paymentStatus === 'PAID') {
+                        setShowCodeInput(true)
+                      } else {
+                        onStatusUpdate(booking.id, 'COMPLETED')
+                        onOpenChange(false)
+                      }
+                    }}
+                    disabled={loading || isCompleting}
+                    className="flex-1 sm:flex-initial"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Mark Completed
+                  </Button>
+                ) : null}
+
+                {!showCodeInput && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      onStatusUpdate(booking.id, 'NO_SHOW')
+                      onOpenChange(false)
+                    }}
+                    disabled={loading || isCompleting}
+                    className="flex-1 sm:flex-initial"
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    No Show
+                  </Button>
+                )}
               </>
             )}
           </div>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
+
+          {showCodeInput ? (
+            <div className="w-full space-y-4 pt-4 border-t mt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  Enter Customer 4-Digit Code
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g. 1234"
+                    value={completionCode}
+                    onChange={(e) => setCompletionCode(e.target.value)}
+                    maxLength={4}
+                    className="flex-1 font-mono tracking-widest text-center text-lg"
+                    disabled={isCompleting}
+                  />
+                  <Button
+                    onClick={async () => {
+                      if (!completionCode || completionCode.length < 4) {
+                        toast.error('Please enter the full 4-digit code provided by the customer.')
+                        return
+                      }
+
+                      setIsCompleting(true)
+                      setCodeError(null)
+                      try {
+                        const result = await completeBookingWithCode(booking.id, completionCode)
+                        if (result.error) {
+                          toast.error(result.error)
+                          setCodeError(result.error)
+                        } else {
+                          toast.success('Booking completed and funds released to your wallet!')
+                          onStatusUpdate(booking.id, 'COMPLETED') // Just to update local UI state if necessary
+                          onOpenChange(false)
+                        }
+                      } catch (e: any) {
+                        toast.error(e.message || 'Error processing completion')
+                      } finally {
+                        setIsCompleting(false)
+                      }
+                    }}
+                    disabled={isCompleting || completionCode.length < 4}
+                  >
+                    {isCompleting ? 'Verifying...' : 'Verify & Complete'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowCodeInput(false)
+                      setCompletionCode('')
+                      setCodeError(null)
+                    }}
+                    disabled={isCompleting}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {codeError && (
+                  <p className="text-sm font-medium text-destructive mt-1">
+                    {codeError}
+                  </p>
+                )}
+                <p className="text-xs text-text-secondary">
+                  If this booking was paid online, verifying this code correctly will immediately transfer the payment out of escrow and into your Available Balance.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

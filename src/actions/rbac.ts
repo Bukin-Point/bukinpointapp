@@ -56,13 +56,20 @@ export async function syncUserRBAC(userId: string) {
             // If owner, ensure they have key owner-like permissions if not explicitly set
             // (Though ideally the OWNER role handles this, we can be defensive)
             if (up.isOwner) {
+                perms.add('view:dashboard')
                 perms.add('manage:settings')
                 perms.add('service:write')
                 perms.add('service:read')
                 perms.add('booking:read')
-                perms.add('booking:write')
+                perms.add('booking:create')
+                perms.add('booking:update')
+                perms.add('booking:delete')
                 perms.add('staff:read')
                 perms.add('staff:write')
+                perms.add('manage:users')
+                perms.add('manage:roles')
+                perms.add('wallet:read')
+                perms.add('wallet:payout')
             }
 
             permissionsMap[up.providerId] = Array.from(perms)

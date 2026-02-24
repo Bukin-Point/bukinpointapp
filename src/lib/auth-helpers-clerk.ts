@@ -69,7 +69,7 @@ export async function getSession() {
         update: {
           email: userEmail,
           emailVerified: isEmailVerified,
-          name: dbUser?.name || userName || 'User',
+          name: userName || 'User',
           image: userImage,
         },
       })
@@ -230,7 +230,7 @@ export async function isUserSuperAdmin() {
  * Uses session claims for instant verification without DB hits.
  */
 export async function hasPermission(providerId: string, permissionName: string) {
-  const { sessionClaims } = await auth()
+  const { sessionClaims, userId: clerkUserId } = await auth()
 
   const metadata = (sessionClaims?.metadata as any) || {}
   const allPermissions = metadata.permissions || {}
@@ -242,6 +242,36 @@ export async function hasPermission(providerId: string, permissionName: string) 
   // 2. Check for Global System Admin override
   const systemPerms = allPermissions['clsystemprovider000000'] || []
   if (systemPerms.includes('system:manage')) return true
+
+  // 3. DB Fallback: Check if user is the direct provider owner
+  if (clerkUserId) {
+    const user = await prisma.user.findUnique({ where: { clerkUserId } })
+    if (user) {
+      // Check direct provider ownership
+      const provider = await prisma.provider.findFirst({
+        where: { id: providerId, userId: user.id }
+      })
+
+      const PROVIDER_FULL_PERMISSIONS = [
+        'view:dashboard', 'manage:settings', 'booking:read', 'booking:create',
+        'booking:update', 'booking:delete', 'service:read', 'service:write',
+        'manage:users', 'manage:roles', 'wallet:read', 'wallet:payout'
+      ]
+
+      if (provider && PROVIDER_FULL_PERMISSIONS.includes(permissionName)) {
+        return true
+      }
+
+      // Check UserProvider isOwner flag
+      const userProvider = await prisma.userProvider.findFirst({
+        where: { providerId, userId: user.id, isOwner: true, isActive: true }
+      })
+
+      if (userProvider && PROVIDER_FULL_PERMISSIONS.includes(permissionName)) {
+        return true
+      }
+    }
+  }
 
   return false
 }

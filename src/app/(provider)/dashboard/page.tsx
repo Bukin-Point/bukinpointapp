@@ -73,6 +73,12 @@ export default async function DashboardPage({
     minimumFractionDigits: 0,
   }).format(stats.totalRevenue)
 
+  const formattedPending = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    minimumFractionDigits: 0,
+  }).format(stats.pendingBalance)
+
   return (
     <div className="space-y-4 lg:space-y-8">
       {/* Header */}
@@ -89,18 +95,25 @@ export default async function DashboardPage({
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatsCard
           title="Total Bookings"
           value={stats.totalBookings.toLocaleString()}
           icon={Calendar}
         />
         {canViewRevenue && (
-          <StatsCard
-            title="Total Revenue"
-            value={formattedRevenue}
-            icon={DollarSign}
-          />
+          <>
+            <StatsCard
+              title="Available Revenue"
+              value={formattedRevenue}
+              icon={DollarSign}
+            />
+            <StatsCard
+              title="Pending Revenue"
+              value={formattedPending}
+              icon={DollarSign}
+            />
+          </>
         )}
         {canManage && (
           <>

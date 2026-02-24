@@ -118,14 +118,11 @@ export function DashboardHeader({
                   </div>
                 ) : (
                   <Avatar
-                    src={user?.imageUrl}
-                    alt={user?.firstName || 'User'}
+                    src={mounted ? user?.imageUrl : undefined}
+                    alt={mounted && user?.firstName ? user.firstName : 'User'}
                     fallback={getUserInitials()}
                     className="h-9 w-9"
-                  >
-                    <AvatarImage src={user?.imageUrl} />
-                    <AvatarFallback>{getUserInitials()}</AvatarFallback>
-                  </Avatar>
+                  />
                 )}
                 <div className="hidden sm:flex flex-col items-start min-w-0">
                   <span className="text-body-sm font-medium truncate max-w-[120px]">

@@ -159,7 +159,7 @@ export async function getProviderDetails(providerId: string) {
                     include: { user: { select: { name: true, email: true, image: true } } },
                     where: { isActive: true }
                 },
-                _count: { select: { bookings: true, staffInvitations: true } },
+                _count: { select: { bookings: true, invitations: true } },
                 wallet: true
             }
         })

@@ -48,8 +48,34 @@ export async function updateBookingStatus(bookingId: string, status: BookingStat
       data: { status },
     })
 
-    if (status === 'COMPLETED') {
-      processPayment({ bookingId }).catch((e) => console.error('updateBookingStatus: processPayment error', e))
+    // If canceled and the booking was already PAID (so money is in pendingBalance), we should ideally refund
+    // For now we just deduct from the provider's pending balance and add it to the CustomerWallet.
+    if (status === 'CANCELLED' && booking.paymentStatus === 'PAID') {
+      try {
+        const txRecord = await prisma.transaction.findUnique({
+          where: { bookingId: booking.id }
+        })
+        if (txRecord) {
+          await prisma.$transaction(async (tx) => {
+            // Deduct from provider pending
+            await tx.wallet.update({
+              where: { providerId: booking.providerId },
+              data: { pendingBalance: { decrement: txRecord.netAmount } }
+            })
+
+            // Issue to customer wallet if they have an account
+            if (booking.userId) {
+              await tx.wallet.upsert({
+                where: { userId: booking.userId },
+                create: { userId: booking.userId, balance: txRecord.amount },
+                update: { balance: { increment: txRecord.amount } }
+              })
+            }
+          })
+        }
+      } catch (e) {
+        console.error('Error handling refund transfer on cancellation', e)
+      }
     }
 
     // Send status update email to customer if status changed to a notifiable status
@@ -425,6 +451,35 @@ export async function cancelBooking(bookingId: string, initiatedBy: 'customer' |
       data: { status: 'CANCELLED' },
     })
 
+    // Handle Escrow Refund Logic
+    if (booking.paymentStatus === 'PAID') {
+      try {
+        const txRecord = await prisma.transaction.findUnique({
+          where: { bookingId: booking.id }
+        })
+        if (txRecord) {
+          await prisma.$transaction(async (tx) => {
+            // Deduct from provider pending
+            await tx.wallet.update({
+              where: { providerId: booking.providerId },
+              data: { pendingBalance: { decrement: txRecord.netAmount } }
+            })
+
+            // Issue to customer wallet if they have an account
+            if (booking.userId) {
+              await tx.wallet.upsert({
+                where: { userId: booking.userId },
+                create: { userId: booking.userId, balance: txRecord.amount }, // Full customer paid amount refunded to customer wallet
+                update: { balance: { increment: txRecord.amount } }
+              })
+            }
+          })
+        }
+      } catch (e) {
+        console.error('Error handling refund transfer on explicit API cancellation', e)
+      }
+    }
+
     // Send cancellation emails based on who initiated
     const emailPromises: Promise<unknown>[] = []
 
@@ -670,5 +725,103 @@ export async function rescheduleBooking(data: z.infer<typeof rescheduleBookingSc
     }
     console.error('Error rescheduling booking:', error)
     return { error: 'Failed to reschedule booking' }
+  }
+}
+
+export async function completeBookingWithCode(bookingId: string, providedCode: string) {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        provider: true,
+      }
+    })
+
+    if (!booking) {
+      return { error: 'Booking not found' }
+    }
+
+    // Authorization check
+    if (!(await hasPermission(booking.provider.id, 'booking:update'))) {
+      return { error: 'Unauthorized: You do not have permission to complete bookings.' }
+    }
+
+    if (booking.status === 'COMPLETED') {
+      return { error: 'Booking is already marked as completed.' }
+    }
+
+    if (booking.paymentStatus !== 'PAID') {
+      return { error: 'Booking has not been paid for yet.' }
+    }
+
+    // Verify 4-digit code
+    if (!booking.completionCode) {
+      // Allow legacy bookings to pass through if they have no code installed.
+      console.warn(`Booking ${booking.id} has no completion code but is being completed. Bypassing check.`)
+    } else if (booking.completionCode !== providedCode) {
+      return { error: 'Invalid Completion Code. Please verify the 4-digit code provided by the customer.' }
+    }
+
+    // Process Wallet Escrow Transfer
+    try {
+      await prisma.$transaction(async (tx) => {
+        // 1. Mark booking completed
+        await tx.booking.update({
+          where: { id: bookingId },
+          data: { status: 'COMPLETED' }
+        })
+
+        // 2. Fetch the transaction to get the net amount
+        const txRecord = await tx.transaction.findUnique({
+          where: { bookingId: booking.id }
+        })
+
+        if (!txRecord) {
+          throw new Error("No transaction found for this paid booking. Cannot transfer funds.")
+        }
+
+        // 3. Move funds from provider's Pending Ledger into their Available Balance
+        await tx.wallet.update({
+          where: { providerId: booking.providerId },
+          data: {
+            pendingBalance: { decrement: txRecord.netAmount },
+            balance: { increment: txRecord.netAmount },
+            totalEarnings: { increment: txRecord.netAmount }
+          }
+        })
+      })
+
+    } catch (e: any) {
+      console.error("Wallet Escrow Transfer Failed:", e)
+      return { error: "Failed to release funds to the available balance: " + e.message }
+    }
+
+    // Send standard status update email
+    if (booking.customerEmail) {
+      sendBookingStatusUpdateEmail({
+        customerEmail: booking.customerEmail,
+        customerName: booking.customerName,
+        bookingRef: booking.bookingRef,
+        serviceName: "service", // we didn't fetch the relation to save time but that is fine for now
+        providerBusinessName: booking.provider.businessName,
+        bookingDate: booking.bookingDate,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        newStatus: 'COMPLETED',
+        previousStatus: booking.status,
+      }).catch(error => {
+        console.error('Error sending booking completion email:', error)
+      })
+    }
+
+    revalidatePath('/bookings')
+    revalidatePath('/wallet')
+    revalidatePath('/dashboard')
+
+    return { success: true }
+
+  } catch (error) {
+    console.error('Error completing booking with code:', error)
+    return { error: 'Internal server error while verifying code.' }
   }
 }

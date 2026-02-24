@@ -24,6 +24,9 @@ export async function fulfillPaymentSuccess(params: {
   })
   if (existingTx) return
 
+  // Generate 4-digit completion code if one doesn't exist
+  const completionCode = booking.completionCode || Math.floor(1000 + Math.random() * 9000).toString()
+
   const servicePrice = Number(booking.service.price)
   const { fee: platformFee, total: totalPaid } = await calculateServiceCharge(servicePrice)
   const netAmount = servicePrice
@@ -47,6 +50,7 @@ export async function fulfillPaymentSuccess(params: {
           status: 'CONFIRMED',
           paymentStatus: 'PAID',
           paymentRef: params.transactionId ?? null,
+          completionCode: completionCode
         },
       })
 
@@ -63,12 +67,11 @@ export async function fulfillPaymentSuccess(params: {
         },
       })
 
-      console.log(`[fulfillPaymentSuccess] Updating wallet for provider ${booking.providerId}. Incrementing by ${netAmount}`)
+      console.log(`[fulfillPaymentSuccess] Updating wallet for provider ${booking.providerId}. Incrementing pendingBalance by ${netAmount}`)
       await tx.wallet.update({
         where: { providerId: booking.providerId },
         data: {
-          balance: { increment: netAmount },
-          totalEarnings: { increment: netAmount },
+          pendingBalance: { increment: netAmount },
         },
       })
       console.log(`[fulfillPaymentSuccess] Wallet update successful`)
@@ -94,6 +97,7 @@ export async function fulfillPaymentSuccess(params: {
       staffName: booking.userProvider.user.name ?? '',
       price: Number(booking.service.price),
       providerPhone: booking.provider.phone || undefined,
+      completionCode: completionCode
     }).catch((e) => console.error('fulfillPaymentSuccess: sendBookingConfirmationEmail error', e))
   }
 

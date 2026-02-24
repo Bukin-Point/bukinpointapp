@@ -26,6 +26,7 @@ model User {
   sessions         Session[]
   accounts         Account[]
   bookings         Booking[]
+  wallet           Wallet?
 
   @@index([email])
   @@index([clerkUserId])
@@ -302,6 +303,7 @@ model Booking {
   paymentRef     String?
   consentGiven   Boolean       @default(false)
   notes          String?
+  completionCode String?       @db.VarChar(4)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -356,14 +358,17 @@ model Transaction {
 
 model Wallet {
   id             String    @id @default(cuid())
-  providerId     String    @unique
+  providerId     String?   @unique
+  userId         String?   @unique
   balance        Decimal   @default(0) @db.Decimal(10, 2)
+  pendingBalance Decimal   @default(0) @db.Decimal(10, 2)
   totalEarnings  Decimal   @default(0) @db.Decimal(10, 2)
   lastSettlement DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider Provider? @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  user     User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Global payment gateway configuration (single row; default = PAYSTACK)

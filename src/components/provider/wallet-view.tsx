@@ -6,8 +6,10 @@ import { format } from 'date-fns'
 
 type SerializedWallet = {
   id: string
-  providerId: string
+  providerId: string | null
+  userId: string | null
   balance: number
+  pendingBalance: number
   totalEarnings: number
   lastSettlement: Date | null
   createdAt: Date
@@ -40,7 +42,7 @@ interface WalletViewProps {
 export function WalletView({ wallet, transactions }: WalletViewProps) {
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-h4">Current Balance</CardTitle>
@@ -49,6 +51,18 @@ export function WalletView({ wallet, transactions }: WalletViewProps) {
           <CardContent>
             <p className="text-3xl font-bold">
               ₦{wallet.balance.toLocaleString()}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-h4">Pending Balance</CardTitle>
+            <CardDescription>Escrow funds (Awaiting Code)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">
+              ₦{wallet.pendingBalance.toLocaleString()}
             </p>
           </CardContent>
         </Card>

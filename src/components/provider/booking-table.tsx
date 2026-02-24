@@ -34,6 +34,7 @@ type BookingWithRelations = Booking & {
       email: string
     }
   }
+  completionCode: string | null
 }
 
 interface BookingTableProps {
@@ -126,7 +127,7 @@ export function BookingTable({
 
   const getStatusActions = (booking: BookingWithRelations) => {
     const actions: Array<{ label: string; status: Booking['status']; icon: React.ReactNode; variant?: 'default' | 'destructive'; type: 'status' | 'cancel' | 'reschedule' }> = []
-    
+
     // Add cancel and reschedule for pending/confirmed bookings
     if (booking.status === 'PENDING' || booking.status === 'CONFIRMED') {
       if (onReschedule) {
@@ -147,7 +148,7 @@ export function BookingTable({
         })
       }
     }
-    
+
     if (booking.status === 'PENDING') {
       actions.push(
         {
@@ -222,7 +223,11 @@ export function BookingTable({
                           onClick={(e) => {
                             e.stopPropagation()
                             if (action.type === 'status') {
-                              onStatusUpdate(booking.id, action.status)
+                              if (action.status === 'COMPLETED' && (booking.completionCode || booking.paymentStatus === 'PAID')) {
+                                onViewDetails?.(booking)
+                              } else {
+                                onStatusUpdate(booking.id, action.status)
+                              }
                             } else if (action.type === 'cancel' && onCancel) {
                               onCancel(booking.id)
                             } else if (action.type === 'reschedule' && onReschedule) {
@@ -249,118 +254,122 @@ export function BookingTable({
       <div className="hidden md:block border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px]">
-          <thead className="bg-muted/50 border-b">
-            <tr>
-              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
-                <SortButton field="date">Date</SortButton>
-              </th>
-              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
-                Time
-              </th>
-              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
-                <SortButton field="service">Service</SortButton>
-              </th>
-              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
-                <SortButton field="customerName">Customer</SortButton>
-              </th>
-              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary hidden md:table-cell whitespace-nowrap">
-                Phone
-              </th>
-              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary hidden lg:table-cell whitespace-nowrap">
-                Staff
-              </th>
-              <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
-                <SortButton field="status">Status</SortButton>
-              </th>
-              <th className="text-right p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedBookings.map((booking) => {
-              const statusActions = getStatusActions(booking)
-              return (
-                <tr
-                  key={booking.id}
-                  className="border-b hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => onViewDetails?.(booking)}
-                >
-                  <td className="p-3 text-body-sm">
-                    <span>{format(new Date(booking.bookingDate), 'MMM dd, yyyy')}</span>
-                  </td>
-                  <td className="p-3 text-body-sm">
-                    <span>{booking.startTime} - {booking.endTime}</span>
-                  </td>
-                  <td className="p-3 text-body-sm">
-                    <span className="font-medium">{booking.service.name}</span>
-                    <div className="text-caption text-text-secondary mt-0.5">
-                      Ref: {booking.bookingRef}
-                    </div>
-                  </td>
-                  <td className="p-3 text-body-sm">
-                    <span className="font-medium">{booking.customerName}</span>
-                    {booking.customerEmail && (
+            <thead className="bg-muted/50 border-b">
+              <tr>
+                <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
+                  <SortButton field="date">Date</SortButton>
+                </th>
+                <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
+                  Time
+                </th>
+                <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
+                  <SortButton field="service">Service</SortButton>
+                </th>
+                <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
+                  <SortButton field="customerName">Customer</SortButton>
+                </th>
+                <th className="text-left p-3 text-body-sm font-semibold text-text-secondary hidden md:table-cell whitespace-nowrap">
+                  Phone
+                </th>
+                <th className="text-left p-3 text-body-sm font-semibold text-text-secondary hidden lg:table-cell whitespace-nowrap">
+                  Staff
+                </th>
+                <th className="text-left p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
+                  <SortButton field="status">Status</SortButton>
+                </th>
+                <th className="text-right p-3 text-body-sm font-semibold text-text-secondary whitespace-nowrap">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedBookings.map((booking) => {
+                const statusActions = getStatusActions(booking)
+                return (
+                  <tr
+                    key={booking.id}
+                    className="border-b hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => onViewDetails?.(booking)}
+                  >
+                    <td className="p-3 text-body-sm">
+                      <span>{format(new Date(booking.bookingDate), 'MMM dd, yyyy')}</span>
+                    </td>
+                    <td className="p-3 text-body-sm">
+                      <span>{booking.startTime} - {booking.endTime}</span>
+                    </td>
+                    <td className="p-3 text-body-sm">
+                      <span className="font-medium">{booking.service.name}</span>
                       <div className="text-caption text-text-secondary mt-0.5">
-                        {booking.customerEmail}
+                        Ref: {booking.bookingRef}
                       </div>
-                    )}
-                  </td>
-                  <td className="p-3 text-body-sm hidden md:table-cell">
-                    <span>{booking.customerPhone}</span>
-                  </td>
-                  <td className="p-3 text-body-sm hidden lg:table-cell">
-                    <span>{booking.userProvider.user.name || booking.userProvider.user.email}</span>
-                  </td>
-                  <td className="p-3">
-                    <Badge className={STATUS_COLORS[booking.status]}>
-                      {booking.status}
-                    </Badge>
-                  </td>
-                  <td className="p-3">
-                    <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-                      {statusActions.length > 0 ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreVertical className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
-                            {statusActions.map((action, index) => (
-                              <DropdownMenuItem
-                                key={`${action.type}-${action.status}-${index}`}
-                                onClick={() => {
-                                  if (action.type === 'status') {
-                                    onStatusUpdate(booking.id, action.status)
-                                  } else if (action.type === 'cancel' && onCancel) {
-                                    onCancel(booking.id)
-                                  } else if (action.type === 'reschedule' && onReschedule) {
-                                    onReschedule(booking)
-                                  }
-                                }}
-                                disabled={loading === booking.id}
-                                className={action.variant === 'destructive' ? 'text-destructive focus:text-destructive' : ''}
-                              >
-                                {action.icon}
-                                {action.label}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : (
-                        <span className="text-caption text-text-secondary">—</span>
+                    </td>
+                    <td className="p-3 text-body-sm">
+                      <span className="font-medium">{booking.customerName}</span>
+                      {booking.customerEmail && (
+                        <div className="text-caption text-text-secondary mt-0.5">
+                          {booking.customerEmail}
+                        </div>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                    </td>
+                    <td className="p-3 text-body-sm hidden md:table-cell">
+                      <span>{booking.customerPhone}</span>
+                    </td>
+                    <td className="p-3 text-body-sm hidden lg:table-cell">
+                      <span>{booking.userProvider.user.name || booking.userProvider.user.email}</span>
+                    </td>
+                    <td className="p-3">
+                      <Badge className={STATUS_COLORS[booking.status]}>
+                        {booking.status}
+                      </Badge>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                        {statusActions.length > 0 ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <MoreVertical className="h-4 w-4" />
+                                <span className="sr-only">Open menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              {statusActions.map((action, index) => (
+                                <DropdownMenuItem
+                                  key={`${action.type}-${action.status}-${index}`}
+                                  onClick={() => {
+                                    if (action.type === 'status') {
+                                      if (action.status === 'COMPLETED' && (booking.completionCode || booking.paymentStatus === 'PAID')) {
+                                        onViewDetails?.(booking)
+                                      } else {
+                                        onStatusUpdate(booking.id, action.status)
+                                      }
+                                    } else if (action.type === 'cancel' && onCancel) {
+                                      onCancel(booking.id)
+                                    } else if (action.type === 'reschedule' && onReschedule) {
+                                      onReschedule(booking)
+                                    }
+                                  }}
+                                  disabled={loading === booking.id}
+                                  className={action.variant === 'destructive' ? 'text-destructive focus:text-destructive' : ''}
+                                >
+                                  {action.icon}
+                                  {action.label}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : (
+                          <span className="text-caption text-text-secondary">—</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
     </>
   )
 }

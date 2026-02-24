@@ -15,6 +15,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
         stats: {
           totalBookings: 0,
           totalRevenue: 0,
+          pendingBalance: 0,
           activeServices: 0,
           activeStaff: 0,
         },
@@ -31,6 +32,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
         stats: {
           totalBookings: 0,
           totalRevenue: 0,
+          pendingBalance: 0,
           activeServices: 0,
           activeStaff: 0,
         },
@@ -59,6 +61,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
           stats: {
             totalBookings: 0,
             totalRevenue: 0,
+            pendingBalance: 0,
             activeServices: 0,
             activeStaff: 0,
           },
@@ -75,6 +78,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
 
     // Get total revenue (only if not staff - staff don't see revenue)
     let totalRevenue = 0
+    let pendingBalance = 0
     let activeServices = 0
     let activeStaff = 0
 
@@ -85,6 +89,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
       })
 
       totalRevenue = wallet ? Number(wallet.totalEarnings) : 0
+      pendingBalance = wallet ? Number(wallet.pendingBalance) : 0
 
       // Get active services count
       activeServices = await prisma.service.count({
@@ -172,6 +177,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
       stats: {
         totalBookings,
         totalRevenue: Number(totalRevenue),
+        pendingBalance: Number(pendingBalance),
         activeServices,
         activeStaff,
       },
@@ -186,6 +192,7 @@ export async function getDashboardStats(providerId: string, staffUserId?: string
       stats: {
         totalBookings: 0,
         totalRevenue: 0,
+        pendingBalance: 0,
         activeServices: 0,
         activeStaff: 0,
       },
