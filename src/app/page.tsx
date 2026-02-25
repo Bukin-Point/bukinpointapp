@@ -16,83 +16,38 @@ function extractSubdomain(hostname: string): string | null {
   // Remove port if present (e.g., "business-one.bukinpoint.test:3000" -> "business-one.bukinpoint.test")
   const hostWithoutPort = hostname.split(':')[0]
 
-  // Handle localhost - no subdomain
-  if (hostWithoutPort.includes('localhost') || hostWithoutPort.includes('127.0.0.1')) {
-    // Check if it's a subdomain localhost (e.g., "business-one.localhost")
-    if (hostWithoutPort.includes('.localhost') && hostWithoutPort.split('.').length >= 3) {
-      const subdomain = hostWithoutPort.split('.')[0].toLowerCase()
-      const mainDomains = [
-        'www',
-        'app',
-        'api',
-        'admin',
-        'dev',
-        'stage',
-        'stagging',
-        'notifications',
-      ]
-      if (!mainDomains.includes(subdomain)) {
-        return subdomain
-      }
-    }
-    return null
-  }
+  if (hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1') return null
 
-  // Following Grok's pattern: Extract subdomain as first part before domain
-  // e.g., "business-one.bukinpoint.test" -> "business-one"
-  // e.g., "customer1.epsy.com" -> "customer1"
   const parts = hostWithoutPort.split('.')
+  let subdomain: string | null = null
 
-  // Need at least 2 parts (subdomain.domain) or 3+ for subdomain.domain.tld
-  if (parts.length < 2) {
-    return null
+  if (hostWithoutPort.endsWith('.localhost') && parts.length >= 2) {
+    subdomain = parts[0].toLowerCase()
+  } else if (hostWithoutPort.endsWith('.test') && parts.length >= 3) {
+    subdomain = parts[0].toLowerCase()
+  } else if (parts.length >= 3) {
+    subdomain = parts[0].toLowerCase()
   }
 
-  // Handle .test and .localhost domains for development
-  if (hostWithoutPort.includes('.test') || hostWithoutPort.includes('.localhost')) {
-    const isTest = parts.includes('test')
-    const isLocalhost = parts.includes('localhost')
+  if (!subdomain) return null
 
-    if ((isTest || isLocalhost) && parts.length >= 3) {
-      // Has subdomain: subdomain.bukinpoint.test
-      const subdomain = parts[0].toLowerCase()
-      const mainDomains = [
-        'www',
-        'app',
-        'api',
-        'admin',
-        'dev',
-        'stage',
-        'stagging',
-        'notifications',
-        'bukinpoint',
-      ]
-      if (mainDomains.includes(subdomain)) {
-        return null
-      }
-      return subdomain
-    } else if ((isTest || isLocalhost) && parts.length === 2) {
-      // Main domain: bukinpoint.test (no subdomain)
-      return null
-    }
-  }
+  const mainDomains = [
+    'www',
+    'app',
+    'api',
+    'admin',
+    'dev',
+    'stage',
+    'stagging',
+    'notifications',
+    'bukinpoint',
+  ]
 
-  // Extract subdomain for production (following Grok's pattern: first part is subdomain)
-  const subdomain = parts[0].toLowerCase()
-  const mainDomains = ['www', 'app', 'api', 'admin', 'dev', 'stage', 'stagging', 'notifications']
   if (mainDomains.includes(subdomain)) {
     return null
   }
 
-  // If we have multiple parts and first part is not a main domain, it's likely a subdomain
-  // But we need to distinguish between "bukinpoint.com" (no subdomain) and "subdomain.bukinpoint.com" (has subdomain)
-  // If parts.length === 2, it's likely the main domain (e.g., "bukinpoint.com")
-  // If parts.length >= 3, first part is likely subdomain (e.g., "business-one.bukinpoint.com")
-  if (parts.length >= 3) {
-    return subdomain
-  }
-
-  return null
+  return subdomain
 }
 
 export default async function HomePage() {

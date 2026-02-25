@@ -19,35 +19,35 @@ export function BookingLinkShare({ subdomain, businessName }: BookingLinkSharePr
   // Build the booking URL
   const getBookingUrl = () => {
     if (!subdomain) return null
-    
+
     // Get base URL from environment or current origin
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
       (typeof window !== 'undefined' ? window.location.origin : '')
-    
-    // Extract domain from base URL
-    // Examples:
-    // - "https://dev.bukinpoint.com" -> "bukinpoint.com"
-    // - "https://bukinpoint.com" -> "bukinpoint.com"
-    // - "http://localhost:3000" -> "bukinpoint.com" (fallback)
-    let domain = baseUrl.replace(/^https?:\/\//, '')
-    
-    // Remove port if present
-    domain = domain.split(':')[0]
-    
-    // Extract root domain (remove subdomain if present)
-    const parts = domain.split('.')
-    if (parts.length >= 2) {
-      // Take last two parts (e.g., "bukinpoint.com")
-      domain = parts.slice(-2).join('.')
+
+    try {
+      const urlObj = new URL(baseUrl || 'https://bukinpoint.com')
+      let hostname = urlObj.hostname
+      const port = urlObj.port ? `:${urlObj.port}` : ''
+      const protocol = urlObj.protocol // includes ':'
+
+      // Extract root domain (remove subdomain if present)
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        const parts = hostname.split('.')
+        // If it's a .test domain locally, we just use the last two parts
+        if (parts.length >= 2) {
+          hostname = parts.slice(-2).join('.')
+        }
+      } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // Localhost - we keep it as localhost except in edge cases
+        if (process.env.NODE_ENV === 'production') {
+          hostname = 'bukinpoint.com'
+        }
+      }
+
+      return `${protocol}//${subdomain}.${hostname}${port}`
+    } catch {
+      return `https://${subdomain}.bukinpoint.com`
     }
-    
-    // If baseUrl is localhost or doesn't have a proper domain, use fallback
-    if (domain.includes('localhost') || domain.includes('127.0.0.1') || !domain.includes('.')) {
-      domain = 'bukinpoint.com' // Fallback for development
-    }
-    
-    const protocol = baseUrl.startsWith('https') ? 'https' : 'http'
-    return `${protocol}://${subdomain}.${domain}`
   }
 
   const bookingUrl = getBookingUrl()

@@ -70,11 +70,9 @@ export function OnboardingForm({ userId }: { userId: string }) {
             description: `Your business profile has been set up. Your booking URL: ${subdomainUrl}`,
           })
 
-          // Redirect to subdomain dashboard after onboarding
-          const subdomainDashboardUrl = `${subdomainUrl}/dashboard`
-
-          // Use window.location for cross-domain redirect
-          window.location.href = subdomainDashboardUrl
+          // Redirect to main domain dashboard after onboarding
+          router.push('/dashboard')
+          router.refresh()
         } else {
           toast({
             title: 'Profile Created!',

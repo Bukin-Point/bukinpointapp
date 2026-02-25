@@ -53,47 +53,16 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   // Remove port if present (e.g., "business-one.bukinpoint.test:3000")
   const hostWithoutPort = hostname.split(':')[0]
 
-  // Extract subdomain following Grok's pattern: first part before domain
   let subdomain: string | null = null
 
-  // Handle localhost
-  if (hostWithoutPort.includes('localhost') || hostWithoutPort.includes('127.0.0.1')) {
-    // Check if it's a subdomain localhost (e.g., "business-one.localhost")
-    if (hostWithoutPort.includes('.localhost') && hostWithoutPort.split('.').length >= 3) {
-      subdomain = hostWithoutPort.split('.')[0].toLowerCase()
-    } else {
-      // Plain localhost - skip subdomain routing
-      return NextResponse.next()
-    }
-  } else {
-    // Handle .test domains and production domains
+  if (hostWithoutPort !== 'localhost' && hostWithoutPort !== '127.0.0.1') {
     const parts = hostWithoutPort.split('.')
-
-    // Need at least 2 parts
-    if (parts.length < 2) {
-      return NextResponse.next()
-    }
-
-    // Handle .test and .localhost domains for development
-    if (hostWithoutPort.includes('.test') || hostWithoutPort.includes('.localhost')) {
-      const isTest = parts.includes('test')
-      const isLocalhost = parts.includes('localhost')
-
-      if ((isTest || isLocalhost) && parts.length >= 3) {
-        // Has subdomain: subdomain.bukinpoint.test
-        subdomain = parts[0].toLowerCase()
-      } else {
-        // Main domain: bukinpoint.test (no subdomain)
-        return NextResponse.next()
-      }
-    } else {
-      // Production: Extract subdomain if we have 3+ parts (subdomain.domain.tld)
-      if (parts.length >= 3) {
-        subdomain = parts[0].toLowerCase()
-      } else {
-        // Main domain: bukinpoint.com (no subdomain)
-        return NextResponse.next()
-      }
+    if (hostWithoutPort.endsWith('.localhost') && parts.length >= 2) {
+      subdomain = parts[0].toLowerCase()
+    } else if (hostWithoutPort.endsWith('.test') && parts.length >= 3) {
+      subdomain = parts[0].toLowerCase()
+    } else if (parts.length >= 3) {
+      subdomain = parts[0].toLowerCase()
     }
   }
 
@@ -113,88 +82,51 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
     return NextResponse.next()
   }
 
-  // Check if subdomain exists in database - subdomains are ONLY for public booking pages
-  // Use internal API route since Prisma doesn't work in Edge Runtime
-  try {
-    const baseUrl = request.nextUrl.origin
-    const lookupUrl = new URL('/api/internal/subdomain-lookup', baseUrl)
-    lookupUrl.searchParams.set('subdomain', subdomain)
+  // SECURITY: Don't allow auth pages or provider pages on subdomains - redirect to main domain
+  // Subdomains are ONLY for public booking
+  const protectedPaths = [
+    '/signin',
+    '/signup',
+    '/auth',
+    '/signup/provider',
+    '/signup/staff',
+    '/signup/customer',
+    '/dashboard',
+    '/services',
+    '/staff',
+    '/bookings',
+    '/availability',
+    '/wallet',
+    '/settings',
+    '/onboarding',
+  ]
 
-    const response = await fetch(lookupUrl.toString(), {
-      headers: {
-        'x-internal-request': 'true', // Optional: add header to identify internal requests
-      },
-      cache: 'no-store', // Don't cache subdomain lookups
-    })
-
-    if (!response.ok) {
-      throw new Error('Subdomain lookup failed')
+  if (protectedPaths.some(path => url.pathname.startsWith(path))) {
+    let mainDomainStr = process.env.NEXT_PUBLIC_APP_URL
+    if (!mainDomainStr) {
+      const isLocal = process.env.NODE_ENV === 'development'
+      const protocol = isLocal ? 'http:' : 'https:'
+      const port = isLocal ? ':3000' : ''
+      const baseDomain = isLocal
+        ? (hostWithoutPort.endsWith('.test') ? 'bukinpoint.test' : 'localhost')
+        : 'bukinpoint.com'
+      mainDomainStr = `${protocol}//${baseDomain}${port}`
     }
 
-    const data = await response.json()
-
-    if (!data.provider) {
-      const mainDomain = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
-      return NextResponse.redirect(new URL(mainDomain))
-    }
-
-    if (data.provider.status !== 'ACTIVE') {
-      const mainDomain = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
-      return NextResponse.redirect(new URL(mainDomain))
-    }
-
-    const provider = data.provider
-
-    // Rewrite to booking page with providerId (subdomains are public booking pages only)
-    // Following Grok's pattern: rewrite to dynamic route with provider context
-    if (url.pathname === '/' || url.pathname === '/book') {
-      url.pathname = `/book/${provider.id}`
-      const response = NextResponse.rewrite(url)
-      // Set headers for the rewritten request
-      response.headers.set('x-provider-id', provider.id)
-      response.headers.set('x-subdomain', subdomain)
-      response.headers.set('x-rewritten', 'true')
-      return response
-    }
-
-    // SECURITY: Don't allow auth pages or provider pages on subdomains - redirect to main domain
-    // Subdomains are ONLY for public booking
-    const protectedPaths = [
-      '/signin',
-      '/signup',
-      '/auth',
-      '/signup/provider',
-      '/signup/staff',
-      '/signup/customer',
-      '/dashboard',
-      '/services',
-      '/staff',
-      '/bookings',
-      '/availability',
-      '/wallet',
-      '/settings',
-      '/onboarding',
-    ]
-    if (protectedPaths.some(path => url.pathname.startsWith(path))) {
-      const mainDomain = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin
-      const redirectUrl = new URL(url.pathname + url.search, mainDomain)
-      return NextResponse.redirect(redirectUrl)
-    }
-
-    // For booking page paths, add provider context via headers
-    const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-provider-id', provider.id)
-    requestHeaders.set('x-subdomain', subdomain)
-
-    return NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    })
-  } catch (error) {
-    console.error('Error in middleware subdomain lookup:', error)
-    return NextResponse.next()
+    const redirectUrl = new URL(url.pathname + url.search, mainDomainStr)
+    return NextResponse.redirect(redirectUrl)
   }
+
+  // For booking page paths, add provider context via headers
+  // Next.js app/page.tsx will natively handle rendering the provider landing
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-subdomain', subdomain)
+
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  })
 })
 
 export const config = {
