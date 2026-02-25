@@ -95,74 +95,54 @@ export default async function ProviderLayout({
     }
   }
 
-  // If we're on a subdomain, verify the user has access to it
-  if (finalSubdomainProviderId && finalSubdomain) {
-    const accessContext = await getProviderAccess(session.user.id, finalSubdomainProviderId)
-
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:50', message: 'Subdomain access check result', data: { userId: session.user.id, subdomainProviderId: finalSubdomainProviderId, subdomain: finalSubdomain, hasAccess: !!accessContext, accessContextProviderId: accessContext?.provider?.id, accessContextBusinessName: accessContext?.provider?.businessName }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-    // #endregion
-
-    if (!accessContext) {
-      // User doesn't have access to this subdomain - redirect to main domain dashboard
-      // The main domain will then redirect them to their own subdomain
-      const mainDomain = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      const isLocal = process.env.NODE_ENV === 'development'
-      const baseDomain = isLocal ? 'bukinpoint.test' : 'bukinpoint.com'
-      const protocol = isLocal ? 'http' : 'https'
-      const port = isLocal ? ':3000' : ''
-      const mainDomainUrl = `${protocol}://${baseDomain}${port}/dashboard`
-
-      // #region agent log
-      fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:77', message: 'SECURITY: Unauthorized subdomain access - redirecting to main domain dashboard', data: { userId: session.user.id, userEmail: session.user.email, subdomainProviderId: finalSubdomainProviderId, subdomain: finalSubdomain, mainDomainUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-      // #endregion
-
-      console.error(
-        `SECURITY: User ${session.user.id} attempted to access subdomain ${finalSubdomain} (provider ${finalSubdomainProviderId}) without authorization. Redirecting to main domain dashboard.`
-      )
-
-      // #region agent log
-      fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:94', message: 'About to call redirect()', data: { mainDomainUrl, userId: session.user.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-      // #endregion
-
-      redirect(mainDomainUrl)
-    }
-  }
+  const isLocal = process.env.NODE_ENV === 'development'
+  const baseDomain = isLocal ? 'bukinpoint.test' : 'bukinpoint.com'
+  const protocol = isLocal ? 'http' : 'https'
+  const port = isLocal ? ':3000' : ''
 
   // Get provider access (either as provider or staff)
-  // Pages will handle providerId from their own searchParams
   const accessContext = await getProviderAccess(session.user.id)
 
-  // If no provider access exists, render children without navigation
-  // This allows the onboarding page to render
-  // The onboarding page itself will handle redirects if needed
-  if (!accessContext) {
-    return <>{children}</>
-  }
-
-  // If provider access exists, verify if they are on the correct subdomain
-  if (!finalSubdomainProviderId || !finalSubdomain) {
-    const isLocal = process.env.NODE_ENV === 'development'
-    const baseDomain = isLocal ? 'bukinpoint.test' : 'bukinpoint.com'
-    const protocol = isLocal ? 'http' : 'https'
-    const port = isLocal ? ':3000' : ''
-
-    // They are a provider but not on their subdomain. Redirect them to their subdomain
+  if (accessContext) {
+    // User IS a provider. strictly enforce they are on their correct subdomain
     const providerSubdomain = accessContext.provider.subdomain
-    if (providerSubdomain) {
+
+    // If they have a subdomain assigned, and they are NOT currently on it:
+    if (providerSubdomain && finalSubdomain !== providerSubdomain) {
       const subdomainDashboardUrl = `${protocol}://${providerSubdomain}.${baseDomain}${port}/dashboard`
+
+      // #region agent log
+      fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:109', message: 'Routing provider strictly to their subdomain', data: { userId: session.user.id, currentSubdomain: finalSubdomain, correctSubdomain: providerSubdomain, redirectingTo: subdomainDashboardUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
+      // #endregion
+
       redirect(subdomainDashboardUrl)
     }
+
+    // They are correctly on their own subdomain! Render the dashboard layout.
+    return (
+      <ProviderLayoutClient
+        businessName={accessContext.provider.businessName}
+        accessContext={accessContext}
+        userId={session.user.id}
+      >
+        {children}
+      </ProviderLayoutClient>
+    )
   }
 
-  // If provider access exists and they are on their subdomain, render with navigation sidebar and header
-  return (
-    <ProviderLayoutClient
-      businessName={accessContext.provider.businessName}
-      accessContext={accessContext}
-      userId={session.user.id}
-    >
-      {children}
-    </ProviderLayoutClient>
-  )
+  // User IS NOT a provider (no access context).
+  // If they are trying to access any provider subdomain, block them and route them to main domain.
+  if (finalSubdomainProviderId || finalSubdomain) {
+    const mainDomainUrl = `${protocol}://${baseDomain}${port}/dashboard` // This will hit customer dashboard logic naturally
+
+    // #region agent log
+    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:130', message: 'SECURITY: Unauthorized subdomain access - redirecting to main domain', data: { userId: session.user.id, subdomain: finalSubdomain, mainDomainUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
+    // #endregion
+
+    redirect(mainDomainUrl)
+  }
+
+  // If no provider access exists and they are safely on the main domain, render children without navigation
+  // This allows the onboarding page to render natively
+  return <>{children}</>
 }
