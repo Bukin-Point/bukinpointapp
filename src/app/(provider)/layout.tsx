@@ -140,7 +140,22 @@ export default async function ProviderLayout({
     return <>{children}</>
   }
 
-  // If provider access exists, render with navigation sidebar and header
+  // If provider access exists, verify if they are on the correct subdomain
+  if (!finalSubdomainProviderId || !finalSubdomain) {
+    const isLocal = process.env.NODE_ENV === 'development'
+    const baseDomain = isLocal ? 'bukinpoint.test' : 'bukinpoint.com'
+    const protocol = isLocal ? 'http' : 'https'
+    const port = isLocal ? ':3000' : ''
+
+    // They are a provider but not on their subdomain. Redirect them to their subdomain
+    const providerSubdomain = accessContext.provider.subdomain
+    if (providerSubdomain) {
+      const subdomainDashboardUrl = `${protocol}://${providerSubdomain}.${baseDomain}${port}/dashboard`
+      redirect(subdomainDashboardUrl)
+    }
+  }
+
+  // If provider access exists and they are on their subdomain, render with navigation sidebar and header
   return (
     <ProviderLayoutClient
       businessName={accessContext.provider.businessName}

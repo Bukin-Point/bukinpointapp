@@ -82,8 +82,8 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
     return NextResponse.next()
   }
 
-  // SECURITY: Don't allow auth pages or provider pages on subdomains - redirect to main domain
-  // Subdomains are ONLY for public booking
+  // SECURITY: Don't allow auth pages on subdomains - redirect to main domain
+  // Subdomains are for provider apps and public booking
   const protectedPaths = [
     '/signin',
     '/signup',
@@ -91,13 +91,6 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
     '/signup/provider',
     '/signup/staff',
     '/signup/customer',
-    '/dashboard',
-    '/services',
-    '/staff',
-    '/bookings',
-    '/availability',
-    '/wallet',
-    '/settings',
     '/onboarding',
   ]
 

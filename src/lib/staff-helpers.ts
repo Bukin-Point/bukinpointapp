@@ -73,6 +73,7 @@ export async function getProviderAccess(
         industry: true,
         userId: true,
         businessImage: true,
+        subdomain: true,
       },
     })
 
@@ -99,6 +100,7 @@ export async function getProviderAccess(
             userId: true,
             status: true,
             businessImage: true,
+            subdomain: true,
           },
         },
         roles: {
@@ -130,6 +132,7 @@ export async function getProviderAccess(
           userId: userProvider.provider.userId,
           industry: userProvider.provider.industry,
           businessImage: userProvider.provider.businessImage,
+          subdomain: userProvider.provider.subdomain,
         },
         permissions: tokenPermissions[providerId] || []
       }
@@ -148,6 +151,7 @@ export async function getProviderAccess(
       userId: true,
       industry: true,
       businessImage: true,
+      subdomain: true,
     },
   })
 
@@ -170,6 +174,7 @@ export async function getProviderAccess(
           userId: true,
           businessImage: true,
           status: true,
+          subdomain: true,
         },
       },
       roles: {
@@ -201,6 +206,7 @@ export async function getProviderAccess(
         industry: userProvider.provider.industry,
         userId: userProvider.provider.userId,
         businessImage: userProvider.provider.businessImage,
+        subdomain: userProvider.provider.subdomain,
       },
       permissions: tokenPermissions[userProvider.providerId] || []
     }
@@ -208,4 +214,3 @@ export async function getProviderAccess(
 
   return null
 }
-

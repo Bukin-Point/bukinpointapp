@@ -152,7 +152,6 @@ export async function getPostSigninRedirectUrl(requestedType?: string): Promise<
       return getRedirectPath(context)
     }
 
-    // Get subdomain based on user type
     let subdomain: string | null = null
     if (context.userType === 'provider') {
       subdomain = await getProviderSubdomain(userId)

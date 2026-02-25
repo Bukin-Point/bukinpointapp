@@ -16,6 +16,7 @@ export interface UserProviderContext {
     industry: string | null
     userId: string
     businessImage: string | null
+    subdomain: string | null
   }
   permissions: string[] // Flattened permissions from token/DB
 }
@@ -27,6 +28,7 @@ export interface ProviderContext {
     industry: string | null
     userId: string
     businessImage: string | null
+    subdomain: string | null
   }
   permissions: string[] // Providers have full permissions
 }
