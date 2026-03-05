@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { getProviderAccess } from '@/lib/staff-helpers'
 import { ProviderLayoutClient } from '@/components/provider/provider-layout-client'
+import { getAppUrl, getSubdomainUrl } from '@/lib/url'
 
 export default async function ProviderLayout({
   children,
@@ -27,11 +28,7 @@ export default async function ProviderLayout({
 
     if (isOnSubdomain) {
       // On subdomain without session - redirect to main domain signin
-      const isLocal = process.env.NODE_ENV === 'development'
-      const baseDomain = isLocal ? 'bukinpoint.test' : 'bukinpoint.com'
-      const protocol = isLocal ? 'http' : 'https'
-      const port = isLocal ? ':3000' : ''
-      const mainDomainSigninUrl = `${protocol}://${baseDomain}${port}/signin`
+      const mainDomainSigninUrl = `${getAppUrl()}/signin`
 
       // #region agent log
       fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:14', message: 'No session on subdomain - redirecting to main domain signin', data: { hostHeader, subdomain, mainDomainSigninUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
@@ -95,10 +92,7 @@ export default async function ProviderLayout({
     }
   }
 
-  const isLocal = process.env.NODE_ENV === 'development'
-  const baseDomain = isLocal ? 'bukinpoint.test' : 'bukinpoint.com'
-  const protocol = isLocal ? 'http' : 'https'
-  const port = isLocal ? ':3000' : ''
+  // Variables mostly handled by new url helpers now
 
   // Get provider access (either as provider or staff)
   const accessContext = await getProviderAccess(session.user.id)
@@ -109,7 +103,7 @@ export default async function ProviderLayout({
 
     // If they have a subdomain assigned, and they are NOT currently on it:
     if (providerSubdomain && finalSubdomain !== providerSubdomain) {
-      const subdomainDashboardUrl = `${protocol}://${providerSubdomain}.${baseDomain}${port}/dashboard`
+      const subdomainDashboardUrl = getSubdomainUrl(providerSubdomain, '/dashboard')
 
       // #region agent log
       fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:109', message: 'Routing provider strictly to their subdomain', data: { userId: session.user.id, currentSubdomain: finalSubdomain, correctSubdomain: providerSubdomain, redirectingTo: subdomainDashboardUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
@@ -133,7 +127,7 @@ export default async function ProviderLayout({
   // User IS NOT a provider (no access context).
   // If they are trying to access any provider subdomain, block them and route them to main domain.
   if (finalSubdomainProviderId || finalSubdomain) {
-    const mainDomainUrl = `${protocol}://${baseDomain}${port}/dashboard` // This will hit customer dashboard logic naturally
+    const mainDomainUrl = `${getAppUrl()}/dashboard` // This will hit customer dashboard logic naturally
 
     // #region agent log
     fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:130', message: 'SECURITY: Unauthorized subdomain access - redirecting to main domain', data: { userId: session.user.id, subdomain: finalSubdomain, mainDomainUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });

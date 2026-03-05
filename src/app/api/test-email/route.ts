@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { sendStaffInvitationEmail } from '@/lib/email'
+import { getAppUrl } from '@/lib/url'
 
 export async function GET() {
   try {
@@ -7,7 +8,7 @@ export async function GET() {
     const testEmail = process.env.TEST_EMAIL || 'test@example.com'
     const businessName = 'Test Business'
     const role = 'STAFF' as const
-    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/signup/staff?token=test-token-123`
+    const invitationUrl = `${getAppUrl()}/signup/staff?token=test-token-123`
 
     const result = await sendStaffInvitationEmail({
       email: testEmail,
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
 
     const businessName = 'Test Business'
     const role = 'STAFF' as const
-    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/signup/staff?token=test-token-123`
+    const invitationUrl = `${getAppUrl()}/signup/staff?token=test-token-123`
 
     const result = await sendStaffInvitationEmail({
       email,

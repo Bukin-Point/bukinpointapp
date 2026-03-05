@@ -1,6 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { getAppUrl } from '@/lib/url'
 
 // Define public routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
@@ -95,16 +96,7 @@ export default clerkMiddleware(async (auth, request: NextRequest) => {
   ]
 
   if (protectedPaths.some(path => url.pathname.startsWith(path))) {
-    let mainDomainStr = process.env.NEXT_PUBLIC_APP_URL
-    if (!mainDomainStr) {
-      const isLocal = process.env.NODE_ENV === 'development'
-      const protocol = isLocal ? 'http:' : 'https:'
-      const port = isLocal ? ':3000' : ''
-      const baseDomain = isLocal
-        ? (hostWithoutPort.endsWith('.test') ? 'bukinpoint.test' : 'localhost')
-        : 'bukinpoint.com'
-      mainDomainStr = `${protocol}//${baseDomain}${port}`
-    }
+    const mainDomainStr = getAppUrl()
 
     const redirectUrl = new URL(url.pathname + url.search, mainDomainStr)
     return NextResponse.redirect(redirectUrl)

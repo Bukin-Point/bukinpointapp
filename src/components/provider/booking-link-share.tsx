@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Copy, Check, Link as LinkIcon } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { getSubdomainUrl } from '@/lib/url'
 
 interface BookingLinkShareProps {
   subdomain: string | null
@@ -20,31 +21,8 @@ export function BookingLinkShare({ subdomain, businessName }: BookingLinkSharePr
   const getBookingUrl = () => {
     if (!subdomain) return null
 
-    // Get base URL from environment or current origin
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
-      (typeof window !== 'undefined' ? window.location.origin : '')
-
     try {
-      const urlObj = new URL(baseUrl || 'https://bukinpoint.com')
-      let hostname = urlObj.hostname
-      const port = urlObj.port ? `:${urlObj.port}` : ''
-      const protocol = urlObj.protocol // includes ':'
-
-      // Extract root domain (remove subdomain if present)
-      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        const parts = hostname.split('.')
-        // If it's a .test domain locally, we just use the last two parts
-        if (parts.length >= 2) {
-          hostname = parts.slice(-2).join('.')
-        }
-      } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        // Localhost - we keep it as localhost except in edge cases
-        if (process.env.NODE_ENV === 'production') {
-          hostname = 'bukinpoint.com'
-        }
-      }
-
-      return `${protocol}//${subdomain}.${hostname}${port}`
+      return getSubdomainUrl(subdomain)
     } catch {
       return `https://${subdomain}.bukinpoint.com`
     }

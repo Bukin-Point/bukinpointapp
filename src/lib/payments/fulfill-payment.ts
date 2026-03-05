@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { sendBookingConfirmationEmail, sendProviderBookingNotificationEmail } from '@/lib/email'
 import { PaymentGateway } from '@prisma/client'
 import { calculateServiceCharge } from './fees'
+import { getAppUrl } from '@/lib/url'
 
 /**
  * Idempotent: mark booking as paid, create transaction, update wallet, send emails.
@@ -82,7 +83,7 @@ export async function fulfillPaymentSuccess(params: {
     throw error // Re-throw to allow webhook to handle failure
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const appUrl = getAppUrl()
 
   if (booking.customerEmail) {
     sendBookingConfirmationEmail({

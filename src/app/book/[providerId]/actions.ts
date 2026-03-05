@@ -7,6 +7,7 @@ import { lockSlot, releaseSlot, getCachedSlots, setCachedSlots, invalidateSlotCa
 import { getSession } from '@/lib/auth-helpers-clerk'
 import { getPaymentGateway } from '@/lib/payments/gateway-factory'
 import { fulfillPaymentSuccess } from '@/lib/payments/fulfill-payment'
+import { getAppUrl } from '@/lib/url'
 
 const createBookingSchema = z.object({
   providerId: z.string(),
@@ -471,7 +472,7 @@ export async function initiateBookingPayment(bookingRef: string) {
 
   console.log(`[initiateBookingPayment] Starting for ref: ${bookingRef}, price: ${booking.service.price}`)
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const baseUrl = getAppUrl()
   const date = booking.bookingDate.toISOString().split('T')[0]
   const time = `${booking.startTime}–${booking.endTime}`
 

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { z } from 'zod'
 import { randomBytes } from 'crypto'
+import { getAppUrl } from '@/lib/url'
 import { sendStaffInvitationEmail } from '@/lib/email'
 import { hasPermission } from '@/lib/auth-helpers-clerk'
 
@@ -109,7 +110,7 @@ export async function sendStaffInvitation(data: z.infer<typeof sendInvitationSch
     })
 
     // Send invitation email
-    const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/signup/staff?token=${token}`
+    const invitationUrl = `${getAppUrl()}/signup/staff?token=${token}`
 
     const emailResult = await sendStaffInvitationEmail({
       email: validated.email,
