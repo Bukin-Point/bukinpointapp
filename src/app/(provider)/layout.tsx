@@ -21,10 +21,19 @@ export default async function ProviderLayout({
   // If no session, redirect to main domain signin (never redirect to subdomain signin)
   if (!session) {
     // Check if we're on a subdomain
-    const isOnSubdomain = subdomain || (hostHeader && hostHeader.split('.').length >= 3 &&
-      !hostHeader.startsWith('localhost') &&
-      !hostHeader.startsWith('127.0.0.1') &&
-      !['bukinpoint.test', 'bukinpoint.localhost', 'bukinpoint.com'].includes(hostHeader.split(':')[0]))
+    let isOnSubdomain = !!subdomain;
+    if (!isOnSubdomain && hostHeader) {
+      const hwp = hostHeader.split(':')[0]
+      if (hwp.endsWith('.vercel.app')) {
+        const parts = hwp.replace('.vercel.app', '').split('.')
+        isOnSubdomain = parts.length >= 2
+      } else {
+        isOnSubdomain = hwp.split('.').length >= 3 &&
+          !hwp.startsWith('localhost') &&
+          !hwp.startsWith('127.0.0.1') &&
+          !['bukinpoint.test', 'bukinpoint.localhost', 'bukinpoint.com'].includes(hwp)
+      }
+    }
 
     if (isOnSubdomain) {
       // On subdomain without session - redirect to main domain signin
@@ -55,13 +64,23 @@ export default async function ProviderLayout({
 
     let extractedSubdomain: string | null = null
     if (hostWithoutPort !== 'localhost' && hostWithoutPort !== '127.0.0.1') {
-      const parts = hostWithoutPort.split('.')
-      if (hostWithoutPort.endsWith('.localhost') && parts.length >= 2) {
-        extractedSubdomain = parts[0].toLowerCase()
-      } else if (hostWithoutPort.endsWith('.test') && parts.length >= 3) {
-        extractedSubdomain = parts[0].toLowerCase()
-      } else if (parts.length >= 3) {
-        extractedSubdomain = parts[0].toLowerCase()
+      if (hostWithoutPort.endsWith('.vercel.app')) {
+        const baseName = hostWithoutPort.replace('.vercel.app', '')
+        const parts = baseName.split('.')
+        if (parts.length >= 2) {
+          extractedSubdomain = parts[0].toLowerCase()
+        } else {
+          extractedSubdomain = null
+        }
+      } else {
+        const parts = hostWithoutPort.split('.')
+        if (hostWithoutPort.endsWith('.localhost') && parts.length >= 2) {
+          extractedSubdomain = parts[0].toLowerCase()
+        } else if (hostWithoutPort.endsWith('.test') && parts.length >= 3) {
+          extractedSubdomain = parts[0].toLowerCase()
+        } else if (parts.length >= 3) {
+          extractedSubdomain = parts[0].toLowerCase()
+        }
       }
     }
 

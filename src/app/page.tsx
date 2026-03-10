@@ -18,15 +18,25 @@ function extractSubdomain(hostname: string): string | null {
 
   if (hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1') return null
 
-  const parts = hostWithoutPort.split('.')
   let subdomain: string | null = null
 
-  if (hostWithoutPort.endsWith('.localhost') && parts.length >= 2) {
-    subdomain = parts[0].toLowerCase()
-  } else if (hostWithoutPort.endsWith('.test') && parts.length >= 3) {
-    subdomain = parts[0].toLowerCase()
-  } else if (parts.length >= 3) {
-    subdomain = parts[0].toLowerCase()
+  if (hostWithoutPort.endsWith('.vercel.app')) {
+    const baseName = hostWithoutPort.replace('.vercel.app', '')
+    const parts = baseName.split('.')
+    if (parts.length >= 2) {
+      subdomain = parts[0].toLowerCase()
+    } else {
+      subdomain = null
+    }
+  } else {
+    const parts = hostWithoutPort.split('.')
+    if (hostWithoutPort.endsWith('.localhost') && parts.length >= 2) {
+      subdomain = parts[0].toLowerCase()
+    } else if (hostWithoutPort.endsWith('.test') && parts.length >= 3) {
+      subdomain = parts[0].toLowerCase()
+    } else if (parts.length >= 3) {
+      subdomain = parts[0].toLowerCase()
+    }
   }
 
   if (!subdomain) return null
