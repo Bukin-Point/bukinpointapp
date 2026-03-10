@@ -1,3 +1,4 @@
+import React from 'react'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getSession } from '@/lib/auth-helpers-clerk'
@@ -133,13 +134,15 @@ export default async function ProviderLayout({
 
     // They are correctly on their own subdomain! Render the dashboard layout.
     return (
-      <ProviderLayoutClient
-        businessName={accessContext.provider.businessName}
-        accessContext={accessContext}
-        userId={session.user.id}
-      >
-        {children}
-      </ProviderLayoutClient>
+      <React.Suspense fallback={<div>Loading provider details...</div>}>
+        <ProviderLayoutClient
+          businessName={accessContext.provider.businessName}
+          accessContext={accessContext}
+          userId={session.user.id}
+        >
+          {children}
+        </ProviderLayoutClient>
+      </React.Suspense>
     )
   }
 
