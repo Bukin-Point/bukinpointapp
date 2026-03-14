@@ -87,18 +87,12 @@ async function hasProvider(userId: string): Promise<boolean> {
  * SECURITY: Verifies subdomain belongs to authenticated user
  */
 export async function getProviderSubdomain(userId: string): Promise<string | null> {
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'auth-redirect.ts:89', message: 'Getting provider subdomain', data: { userId }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-  // #endregion
   try {
     const provider = await prisma.provider.findUnique({
       where: { userId },
       select: { subdomain: true, status: true, id: true, businessName: true },
     })
 
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'auth-redirect.ts:95', message: 'Provider subdomain query result', data: { userId, found: !!provider, providerId: provider?.id, businessName: provider?.businessName, subdomain: provider?.subdomain, status: provider?.status }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-    // #endregion
 
     // Only return if provider exists and is active
     if (!provider || provider.status !== 'ACTIVE' || !provider.subdomain) {

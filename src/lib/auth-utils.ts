@@ -75,9 +75,6 @@ export function isMainDomain(): boolean {
 
   const hostname = window.location.hostname
   
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-utils.ts:73',message:'Checking if main domain',data:{hostname,currentUrl:window.location.href},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
   
   const isMain = (
     hostname === 'bukinpoint.test' ||
@@ -86,9 +83,6 @@ export function isMainDomain(): boolean {
     hostname === 'localhost'
   )
   
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-utils.ts:84',message:'Main domain check result',data:{hostname,isMain},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
   
   return isMain
 }
@@ -145,9 +139,6 @@ export async function getRedirectUrlWithSubdomain(
   // This prevents users from staying on subdomains they don't own after signin
   const isOnMainDomain = isMainDomain()
   
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-utils.ts:145',message:'getRedirectUrlWithSubdomain check',data:{isOnMainDomain,currentHostname:typeof window !== 'undefined' ? window.location.hostname : 'server',userType:context.userType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
 
   // Determine path based on context
   // IMPORTANT: Always use /dashboard for signin, never /signin
@@ -171,9 +162,6 @@ export async function getRedirectUrlWithSubdomain(
   // Ensure path is always /dashboard for signin flow, never /signin
   const redirectUrl = await getSecureSubdomainRedirect(userId, subdomain, path)
 
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-utils.ts:172',message:'getSecureSubdomainRedirect result',data:{userId,subdomain,path,redirectUrl,hasRedirectUrl:!!redirectUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
 
   // If we got a full URL (user's subdomain), use it regardless of current domain
   // This ensures users always go to their own subdomain after signin
@@ -185,9 +173,6 @@ export async function getRedirectUrlWithSubdomain(
       urlObj.pathname = '/dashboard'
       return urlObj.toString()
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-utils.ts:184',message:'Returning validated redirect URL',data:{userId,redirectUrl,subdomain},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     return redirectUrl
   }
 
@@ -200,16 +185,10 @@ export async function getRedirectUrlWithSubdomain(
     const protocol = isLocal ? 'http' : 'https'
     const port = isLocal ? ':3000' : ''
     const mainDomainUrl = `${protocol}://${baseDomain}${port}${path}`
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-utils.ts:196',message:'No subdomain redirect, redirecting to main domain',data:{userId,isOnMainDomain,mainDomainUrl,subdomain},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     return mainDomainUrl
   }
 
   // Fallback to normal path redirect
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-utils.ts:203',message:'Fallback to path redirect',data:{userId,path:getRedirectPath(context),subdomain},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
   return getRedirectPath(context)
 }
 

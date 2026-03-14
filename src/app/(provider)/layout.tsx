@@ -40,9 +40,6 @@ export default async function ProviderLayout({
       // On subdomain without session - redirect to main domain signin
       const mainDomainSigninUrl = `${getAppUrl()}/signin`
 
-      // #region agent log
-      fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:14', message: 'No session on subdomain - redirecting to main domain signin', data: { hostHeader, subdomain, mainDomainSigninUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-      // #endregion
 
       redirect(mainDomainSigninUrl)
     } else {
@@ -51,9 +48,6 @@ export default async function ProviderLayout({
     }
   }
 
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:19', message: 'Subdomain access check', data: { userId: session.user.id, userEmail: session.user.email, subdomainProviderId, subdomain, hostHeader, hasSubdomainHeaders: !!(subdomainProviderId && subdomain) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-  // #endregion
 
   // FALLBACK: If headers are missing but we're on a subdomain, extract from hostname
   let finalSubdomainProviderId = subdomainProviderId
@@ -85,9 +79,6 @@ export default async function ProviderLayout({
       }
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:32', message: 'Fallback: Attempting subdomain extraction', data: { hostHeader, hostWithoutPort, extractedSubdomain }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-    // #endregion
 
     if (extractedSubdomain && extractedSubdomain !== 'www' && extractedSubdomain !== 'app' && extractedSubdomain !== 'api' && extractedSubdomain !== 'admin') {
       // Look up provider by subdomain
@@ -97,17 +88,9 @@ export default async function ProviderLayout({
         select: { id: true, status: true },
       })
 
-      // #region agent log
-      fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:42', message: 'Fallback: Provider lookup result', data: { extractedSubdomain, providerFound: !!provider, providerId: provider?.id, providerStatus: provider?.status }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-      // #endregion
-
       if (provider && provider.status === 'ACTIVE') {
         finalSubdomain = extractedSubdomain
         finalSubdomainProviderId = provider.id
-
-        // #region agent log
-        fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:48', message: 'Fallback: Subdomain extracted successfully', data: { hostHeader, extractedSubdomain, providerId: provider.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-        // #endregion
       }
     }
   }
@@ -125,9 +108,6 @@ export default async function ProviderLayout({
     if (providerSubdomain && finalSubdomain !== providerSubdomain) {
       const subdomainDashboardUrl = getSubdomainUrl(providerSubdomain, '/dashboard')
 
-      // #region agent log
-      fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:109', message: 'Routing provider strictly to their subdomain', data: { userId: session.user.id, currentSubdomain: finalSubdomain, correctSubdomain: providerSubdomain, redirectingTo: subdomainDashboardUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-      // #endregion
 
       redirect(subdomainDashboardUrl)
     }
@@ -151,9 +131,6 @@ export default async function ProviderLayout({
   if (finalSubdomainProviderId || finalSubdomain) {
     const mainDomainUrl = `${getAppUrl()}/dashboard` // This will hit customer dashboard logic naturally
 
-    // #region agent log
-    fetch('http://127.0.0.1:7246/ingest/55297bb7-6ff5-481e-a112-b56b6ed47700', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'layout.tsx:130', message: 'SECURITY: Unauthorized subdomain access - redirecting to main domain', data: { userId: session.user.id, subdomain: finalSubdomain, mainDomainUrl }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-    // #endregion
 
     redirect(mainDomainUrl)
   }
