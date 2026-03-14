@@ -10,6 +10,7 @@ const isPublicRoute = createRouteMatcher([
   '/auth(.*)', // Catch-all for unified auth page
   '/book(.*)',
   '/api/webhooks(.*)',
+  '/api/health', // Health check endpoint for diagnostics
   '/auth/redirect', // Allow redirect handler to run (it will check auth internally)
 ])
 
