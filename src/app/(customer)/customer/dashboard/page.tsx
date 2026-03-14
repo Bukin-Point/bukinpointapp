@@ -12,10 +12,6 @@ export default async function CustomerDashboardPage() {
     redirect('/signin')
   }
 
-  // Link any existing bookings by email synchronously before fetching
-  if (session.user.email) {
-    await linkBookingsToAccount(session.user.id, session.user.email)
-  }
 
   const bookingsResult = await getCustomerBookings(session.user.id, session.user.email)
   const bookings = bookingsResult.bookings || []
