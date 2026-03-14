@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install && prisma generate",
+  "installCommand": "npm install && npx prisma generate",
   "buildCommand": "next build",
   "devCommand": "next dev"
 }
