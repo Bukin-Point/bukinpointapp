@@ -15,27 +15,30 @@ const isPublicRoute = createRouteMatcher([
 ])
 
 export default clerkMiddleware(async (auth, request: NextRequest) => {
-  // SECURITY: Enforce HTTPS in production
-  if (process.env.NODE_ENV === 'production') {
-    const protocol = request.nextUrl.protocol
-    if (protocol !== 'https:') {
-      const httpsUrl = request.nextUrl.clone()
-      httpsUrl.protocol = 'https:'
-      return NextResponse.redirect(httpsUrl)
-    }
-  }
-
   // Skip subdomain routing for internal API routes
   if (request.nextUrl.pathname.startsWith('/api/internal/')) {
     return NextResponse.next()
   }
 
-  // Handle authentication for protected routes
-  const { userId } = await auth()
+  // Check if route is public FIRST, before calling auth()
   const isPublic = isPublicRoute(request)
 
-  // If route is protected and user is not authenticated, Clerk will handle redirect
-  if (!isPublic && !userId) {
+  // For public routes, skip auth entirely
+  if (isPublic) {
+    return NextResponse.next()
+  }
+
+  // Handle authentication for protected routes
+  // Wrap in try-catch to prevent crashes on Vercel preview URLs with dev keys
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      // Not authenticated on a protected route - let Clerk handle redirect
+      return NextResponse.next()
+    }
+  } catch (error) {
+    console.error('[Middleware] Auth error:', error)
+    // On auth error, let the request through - page-level auth will handle it
     return NextResponse.next()
   }
 
