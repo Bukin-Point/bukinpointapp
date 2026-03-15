@@ -22,10 +22,16 @@ export async function getCurrentGatewayForProvider(
     }
   }
 
-  let config = await prisma.paymentConfig.findFirst({
-    orderBy: { updatedAt: 'desc' },
-    select: { currentGateway: true },
-  })
+  let config: { currentGateway: PaymentGateway } | null = null
+  try {
+    config = await prisma.paymentConfig.findFirst({
+      orderBy: { updatedAt: 'desc' },
+      select: { currentGateway: true },
+    })
+  } catch (err) {
+    console.error('[getCurrentGatewayForProvider] PaymentConfig query failed (table may not exist):', err)
+    return 'PAYSTACK'
+  }
 
   if (!config) {
     try {
@@ -85,11 +91,16 @@ export async function setProviderPaymentGateway(
  * Get global default gateway (for admin/settings UI).
  */
 export async function getGlobalPaymentGateway(): Promise<PaymentGateway> {
-  const config = await prisma.paymentConfig.findFirst({
-    orderBy: { updatedAt: 'desc' },
-    select: { currentGateway: true },
-  })
-  return config?.currentGateway ?? 'PAYSTACK'
+  try {
+    const config = await prisma.paymentConfig.findFirst({
+      orderBy: { updatedAt: 'desc' },
+      select: { currentGateway: true },
+    })
+    return config?.currentGateway ?? 'PAYSTACK'
+  } catch (err) {
+    console.error('[getGlobalPaymentGateway] PaymentConfig query failed (table may not exist):', err)
+    return 'PAYSTACK'
+  }
 }
 
 /**
