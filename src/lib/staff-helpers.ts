@@ -55,8 +55,13 @@ export async function getProviderAccess(
   userId: string,
   providerId?: string
 ): Promise<AccessContext | null> {
-  const { sessionClaims } = await auth()
-  const tokenPermissions = (sessionClaims?.metadata as any)?.permissions || {}
+  let tokenPermissions: Record<string, string[]> = {}
+  try {
+    const { sessionClaims } = await auth()
+    tokenPermissions = (sessionClaims?.metadata as any)?.permissions || {}
+  } catch (err) {
+    console.error('[getProviderAccess] auth() failed, using empty permissions:', err)
+  }
 
   // If providerId is specified, validate access and return that specific provider
   if (providerId) {
