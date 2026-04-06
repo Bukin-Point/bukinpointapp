@@ -5,6 +5,8 @@ import { getSession } from '@/lib/auth-helpers-clerk'
 import { getProviderAccess } from '@/lib/staff-helpers'
 import { ProviderLayoutClient } from '@/components/provider/provider-layout-client'
 import { getAppUrl, getSubdomainUrl } from '@/lib/url'
+import { resolveRequestTenant } from '@/lib/request-tenant'
+import { isTenantSubdomain } from '@/lib/tenant-host'
 
 export default async function ProviderLayout({
   children,
@@ -15,26 +17,12 @@ export default async function ProviderLayout({
 
   // SECURITY: If accessing a subdomain, verify user has access to it
   const headersList = await headers()
-  const subdomainProviderId = headersList.get('x-provider-id')
-  const subdomain = headersList.get('x-subdomain')
   const hostHeader = headersList.get('host') || ''
+  const tenant = await resolveRequestTenant()
 
   // If no session, redirect to main domain signin (never redirect to subdomain signin)
   if (!session) {
-    // Check if we're on a subdomain
-    let isOnSubdomain = !!subdomain;
-    if (!isOnSubdomain && hostHeader) {
-      const hwp = hostHeader.split(':')[0]
-      if (hwp.endsWith('.vercel.app')) {
-        const parts = hwp.replace('.vercel.app', '').split('.')
-        isOnSubdomain = parts.length >= 2
-      } else {
-        isOnSubdomain = hwp.split('.').length >= 3 &&
-          !hwp.startsWith('localhost') &&
-          !hwp.startsWith('127.0.0.1') &&
-          !['bukinpoint.test', 'bukinpoint.localhost', 'bukinpoint.com'].includes(hwp)
-      }
-    }
+    const isOnSubdomain = !!tenant.subdomain || isTenantSubdomain(hostHeader)
 
     if (isOnSubdomain) {
       // On subdomain without session - redirect to main domain signin
@@ -49,51 +37,8 @@ export default async function ProviderLayout({
   }
 
 
-  // FALLBACK: If headers are missing but we're on a subdomain, extract from hostname
-  let finalSubdomainProviderId = subdomainProviderId
-  let finalSubdomain = subdomain
-
-  if (!finalSubdomainProviderId && hostHeader) {
-    // Extract subdomain from hostname as fallback
-    const hostWithoutPort = hostHeader.split(':')[0] // Remove port
-
-    let extractedSubdomain: string | null = null
-    if (hostWithoutPort !== 'localhost' && hostWithoutPort !== '127.0.0.1') {
-      if (hostWithoutPort.endsWith('.vercel.app')) {
-        const baseName = hostWithoutPort.replace('.vercel.app', '')
-        const parts = baseName.split('.')
-        if (parts.length >= 2) {
-          extractedSubdomain = parts[0].toLowerCase()
-        } else {
-          extractedSubdomain = null
-        }
-      } else {
-        const parts = hostWithoutPort.split('.')
-        if (hostWithoutPort.endsWith('.localhost') && parts.length >= 2) {
-          extractedSubdomain = parts[0].toLowerCase()
-        } else if (hostWithoutPort.endsWith('.test') && parts.length >= 3) {
-          extractedSubdomain = parts[0].toLowerCase()
-        } else if (parts.length >= 3) {
-          extractedSubdomain = parts[0].toLowerCase()
-        }
-      }
-    }
-
-
-    if (extractedSubdomain && extractedSubdomain !== 'www' && extractedSubdomain !== 'app' && extractedSubdomain !== 'api' && extractedSubdomain !== 'admin') {
-      // Look up provider by subdomain
-      const { prisma } = await import('@/lib/db')
-      const provider = await prisma.provider.findUnique({
-        where: { subdomain: extractedSubdomain },
-        select: { id: true, status: true },
-      })
-
-      if (provider && provider.status === 'ACTIVE') {
-        finalSubdomain = extractedSubdomain
-        finalSubdomainProviderId = provider.id
-      }
-    }
-  }
+  const finalSubdomainProviderId = tenant.providerId
+  const finalSubdomain = tenant.subdomain
 
   // Variables mostly handled by new url helpers now
 

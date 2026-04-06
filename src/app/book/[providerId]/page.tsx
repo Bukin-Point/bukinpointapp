@@ -5,6 +5,10 @@ import { getSession } from '@/lib/auth-helpers-clerk'
 import { BookingFlow } from '@/components/booking/booking-flow'
 import { ProviderLanding } from '@/components/booking/provider-landing'
 import { getCurrentGatewayForProvider } from '@/lib/payment-config'
+import { resolveRequestTenant } from '@/lib/request-tenant'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function PublicBookingPage({
   params,
@@ -18,12 +22,17 @@ export default async function PublicBookingPage({
   const paymentCancelled = payment === 'cancelled'
   const session = await getSession()
   const headersList = await headers()
-  const providerIdFromHeader = headersList.get('x-provider-id')
+  const tenant = await resolveRequestTenant()
 
   // Use providerId from header (subdomain routing) or from params (direct URL)
-  const finalProviderId = providerIdFromHeader || providerId
+  const finalProviderId = tenant.providerId || providerId
 
   if (!finalProviderId) {
+    console.error('[PublicBookingPage] Missing provider context', {
+      host: headersList.get('x-forwarded-host') || headersList.get('host'),
+      subdomain: tenant.subdomain,
+      providerIdParam: providerId || null,
+    })
     notFound()
   }
 
@@ -53,6 +62,11 @@ export default async function PublicBookingPage({
   })
 
   if (!provider || provider.status !== 'ACTIVE') {
+    console.error('[PublicBookingPage] Provider missing or inactive', {
+      host: headersList.get('x-forwarded-host') || headersList.get('host'),
+      subdomain: tenant.subdomain,
+      providerId: finalProviderId,
+    })
     notFound()
   }
 

@@ -7,6 +7,7 @@ import { BusinessDetailsForm } from '@/components/provider/business-details-form
 import { BookingLinkShare } from '@/components/provider/booking-link-share'
 import { sanitizeProviderId } from '@/lib/auth-utils'
 import { ProviderContextError } from '@/components/provider/provider-context-error'
+import { resolveRequestTenant } from '@/lib/request-tenant'
 
 export default async function BusinessDetailsPage({
   searchParams,
@@ -20,12 +21,11 @@ export default async function BusinessDetailsPage({
   }
 
   // SECURITY: If on a subdomain, use the subdomain's provider ID (enforced by layout)
-  const headersList = await headers()
-  const subdomainProviderId = headersList.get('x-provider-id')
+  const tenant = await resolveRequestTenant()
   
   const params = await searchParams
   // Prioritize subdomain provider ID over URL parameter for security
-  const urlProviderId = subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
+  const urlProviderId = tenant.providerId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
 
   // Get provider access (either as provider or staff)
   const accessContext = await getProviderAccess(session.user.id, urlProviderId || undefined)

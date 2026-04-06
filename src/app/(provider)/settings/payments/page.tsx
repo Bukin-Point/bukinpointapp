@@ -11,6 +11,7 @@ import { sanitizeProviderId } from '@/lib/auth-utils'
 import { ProviderContextError } from '@/components/provider/provider-context-error'
 import { PaymentGatewayForm } from '@/components/provider/payment-gateway-form'
 import { isUserSuperAdmin } from '@/lib/auth-helpers-clerk'
+import { resolveRequestTenant } from '@/lib/request-tenant'
 
 export default async function PaymentsSettingsPage({
   searchParams,
@@ -23,11 +24,10 @@ export default async function PaymentsSettingsPage({
     redirect('/signin')
   }
 
-  const headersList = await headers()
-  const subdomainProviderId = headersList.get('x-provider-id')
+  const tenant = await resolveRequestTenant()
   const params = await searchParams
   const urlProviderId =
-    subdomainProviderId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
+    tenant.providerId || (params.providerId ? sanitizeProviderId(params.providerId) : undefined)
 
   const accessContext = await getProviderAccess(session.user.id, urlProviderId || undefined)
 

@@ -9,11 +9,6 @@ export function getAppUrl(): string {
     }
 
     // Next.js/Vercel standard preview URLs
-    if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-        return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-    }
-
-    // Vercel system preview URL fallback
     if (typeof process !== 'undefined' && process.env.VERCEL_URL) {
         return `https://${process.env.VERCEL_URL}`;
     }

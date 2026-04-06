@@ -6,71 +6,21 @@ import { Footer } from '@/components/marketplace/footer'
 import { getMarketplaceServices, getMarketplaceIndustries } from '@/actions/marketplace'
 import { prisma } from '@/lib/db'
 import { ProviderLanding } from '@/components/booking/provider-landing'
+import { resolveRequestTenant } from '@/lib/request-tenant'
 
 export const metadata = {
   title: 'BukinPoint - Book Services Online',
   description: 'Discover and book services from trusted providers in your area',
 }
 
-function extractSubdomain(hostname: string): string | null {
-  // Remove port if present (e.g., "business-one.bukinpoint.test:3000" -> "business-one.bukinpoint.test")
-  const hostWithoutPort = hostname.split(':')[0]
-
-  if (hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1') return null
-
-  let subdomain: string | null = null
-
-  if (hostWithoutPort.endsWith('.vercel.app')) {
-    const baseName = hostWithoutPort.replace('.vercel.app', '')
-    const parts = baseName.split('.')
-    if (parts.length >= 2) {
-      subdomain = parts[0].toLowerCase()
-    } else {
-      subdomain = null
-    }
-  } else {
-    const parts = hostWithoutPort.split('.')
-    if (hostWithoutPort.endsWith('.localhost') && parts.length >= 2) {
-      subdomain = parts[0].toLowerCase()
-    } else if (hostWithoutPort.endsWith('.test') && parts.length >= 3) {
-      subdomain = parts[0].toLowerCase()
-    } else if (parts.length >= 3) {
-      subdomain = parts[0].toLowerCase()
-    }
-  }
-
-  if (!subdomain) return null
-
-  const mainDomains = [
-    'www',
-    'app',
-    'api',
-    'admin',
-    'dev',
-    'stage',
-    'stagging',
-    'notifications',
-    'bukinpoint',
-  ]
-
-  if (mainDomains.includes(subdomain)) {
-    return null
-  }
-
-  return subdomain
-}
-
 export default async function HomePage() {
   const headersList = await headers()
-  const hostname = headersList.get('host') || ''
-  const providerIdFromHeader = headersList.get('x-provider-id')
-
-  // Extract subdomain from hostname
-  const subdomain = extractSubdomain(hostname)
+  const tenant = await resolveRequestTenant()
+  const providerIdFromHeader = tenant.providerId
 
   // If we have a subdomain or provider ID from middleware, check if it's a valid provider
   let provider = null
-  if (subdomain || providerIdFromHeader) {
+  if (tenant.subdomain || providerIdFromHeader) {
     try {
       if (providerIdFromHeader) {
         // Use provider ID from middleware header
@@ -98,10 +48,10 @@ export default async function HomePage() {
             },
           },
         })
-      } else if (subdomain) {
+      } else if (tenant.subdomain) {
         // Look up provider by subdomain
         provider = await prisma.provider.findUnique({
-          where: { subdomain },
+          where: { subdomain: tenant.subdomain },
           include: {
             services: {
               where: { isActive: true },
@@ -126,7 +76,11 @@ export default async function HomePage() {
         })
       }
     } catch (error) {
-      console.error('Error checking subdomain:', error)
+      console.error('[HomePage] Error resolving tenant homepage:', {
+        error,
+        host: headersList.get('x-forwarded-host') || headersList.get('host'),
+        subdomain: tenant.subdomain,
+      })
       // Fall through to show marketplace
     }
   }
