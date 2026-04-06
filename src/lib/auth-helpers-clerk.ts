@@ -8,13 +8,28 @@ import { prisma } from './db'
  * Replaces Better Auth's getSession
  */
 export async function getSession() {
-  const { userId } = await auth()
+  let userId: string | null = null
+
+  try {
+    const authResult = await auth()
+    userId = authResult.userId
+  } catch (error) {
+    console.error('[getSession] auth() failed:', error)
+    return null
+  }
 
   if (!userId) {
     return null
   }
 
-  const user = await currentUser()
+  let user = null
+
+  try {
+    user = await currentUser()
+  } catch (error) {
+    console.error('[getSession] currentUser() failed:', error)
+    return null
+  }
 
   if (!user) {
     return null

@@ -12,20 +12,29 @@ interface Props {
 interface State {
   hasError: boolean
   error: Error | null
+  digest?: string
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false, error: null, digest: undefined }
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error }
+    return {
+      hasError: true,
+      error,
+      digest: (error as Error & { digest?: string }).digest,
+    }
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo)
+    console.error('Error caught by boundary:', {
+      message: error.message,
+      digest: (error as Error & { digest?: string }).digest,
+      errorInfo,
+    })
   }
 
   render() {
@@ -45,13 +54,20 @@ export class ErrorBoundary extends Component<Props, State> {
             </CardHeader>
             <CardContent>
               {this.state.error && (
-                <p className="mb-4 text-body-sm text-text-secondary">
-                  {this.state.error.message}
-                </p>
+                <div className="mb-4 space-y-2">
+                  <p className="text-body-sm text-text-secondary">
+                    {this.state.error.message}
+                  </p>
+                  {this.state.digest && (
+                    <p className="rounded-md bg-muted px-3 py-2 font-mono text-xs text-left">
+                      Digest: {this.state.digest}
+                    </p>
+                  )}
+                </div>
               )}
               <Button
                 onClick={() => {
-                  this.setState({ hasError: false, error: null })
+                  this.setState({ hasError: false, error: null, digest: undefined })
                   window.location.reload()
                 }}
               >
