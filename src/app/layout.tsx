@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { Poppins } from 'next/font/google'
 import { ClerkProvider } from '@clerk/nextjs'
 import './globals.css'
-import { ErrorBoundary } from '@/components/error-boundary'
 import { Toaster } from '@/components/toaster'
 import { QueryProvider } from '@/providers/query-provider'
 
@@ -41,10 +40,8 @@ export default function RootLayout({
             shadow="0 0 10px #000000,0 0 5px #000000"
           />
           <QueryProvider>
-            <ErrorBoundary>
-              {children}
-              <Toaster />
-            </ErrorBoundary>
+            {children}
+            <Toaster />
           </QueryProvider>
         </body>
       </html>
