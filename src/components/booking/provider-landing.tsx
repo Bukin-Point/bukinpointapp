@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, Phone, Mail, Building2, CheckCircle2 } from 'lucide-react'
@@ -61,13 +60,12 @@ export function ProviderLanding({ provider }: ProviderLandingProps) {
             <div className="text-center space-y-6">
               {/* Provider Image */}
               <div className="relative mx-auto w-40 h-40 lg:w-48 lg:h-48 rounded-full overflow-hidden border-4 border-background shadow-xl ring-4 ring-primary/20">
-                <Image
+                <img
                   src={providerImage}
                   alt={provider.businessName}
-                  fill
-                  className="object-cover"
-                  sizes="192px"
-                  priority
+                  className="h-full w-full object-cover"
+                  loading="eager"
+                  referrerPolicy="no-referrer"
                 />
               </div>
 

@@ -4,7 +4,6 @@ import { getSession } from '@/lib/auth-helpers-clerk'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { prisma } from '@/lib/db'
-import Image from 'next/image'
 
 export default async function ProfilePage() {
   const session = await getSession()
@@ -58,12 +57,12 @@ export default async function ProfilePage() {
             <div className="flex items-center gap-4">
               {provider?.businessImage ? (
                 <div className="relative h-20 w-20 rounded-full overflow-hidden border-2 border-border">
-                  <Image
+                  <img
                     src={provider.businessImage}
                     alt={provider.businessName || 'Business'}
-                    fill
-                    className="object-cover"
-                    sizes="80px"
+                    className="h-full w-full object-cover"
+                    loading="eager"
+                    referrerPolicy="no-referrer"
                   />
                 </div>
               ) : (

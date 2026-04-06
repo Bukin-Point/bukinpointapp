@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 import { Bell, Menu, X, User, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -108,12 +107,12 @@ export function DashboardHeader({
               <button className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg p-1">
                 {accessContext.provider.businessImage ? (
                   <div className="relative h-9 w-9 rounded-full overflow-hidden border-2 border-border">
-                    <Image
+                    <img
                       src={accessContext.provider.businessImage}
                       alt={accessContext.provider.businessName || 'Business'}
-                      fill
-                      className="object-cover"
-                      sizes="36px"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
                     />
                   </div>
                 ) : (
